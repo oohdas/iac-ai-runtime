@@ -616,6 +616,89 @@ class MonitoringTests(unittest.TestCase):
             self.assertEqual(health["delivery_outbox"]["FAILED"], 1)
             codes={item["code"] for item in classify_alerts(health)}
             self.assertIn("ALERT_DELIVERY_FAILED", codes)
+            diagnostics=store.alert_delivery_diagnostics(worker, "IAC")
+            self.assertEqual(diagnostics["failed"], 1)
+            self.assertFalse(diagnostics["manual_execution_authorized"])
+            report=ReportingService(store, worker).generate(
+                "DAILY", "IAC", period_key="2030-01-03"
+            )
+            self.assertEqual(report["headline"], "ATTENTION REQUIRED")
+            self.assertEqual(report["delivery_diagnostics"]["failed"], 1)
+            self.assertIn(
+                retry["delivery_id"],
+                report["inferences"][0]["evidence_delivery_ids"],
+            )
+            interface=CommandGateway(store, Actor("chatgpt-interface", frozenset({"IAC"})))
+            with self.assertRaisesRegex(AuthorizationError, "Only Sean"):
+                interface.reset_failed_delivery(
+                    retry["delivery_id"], reason="Synthetic failure reviewed"
+                )
+            operator=CommandGateway(
+                store, Actor("sean-chatgpt-operator", frozenset({"IAC"}), is_sean=True)
+            )
+            reset=operator.reset_failed_delivery(
+                retry["delivery_id"], reason="Synthetic failure reviewed"
+            )
+            self.assertEqual(reset["status"], "STAGED")
+            self.assertIsNone(reset["approval_id"])
+            self.assertEqual(reset["attempt_count"], 0)
+            self.assertEqual(
+                operator.reset_failed_delivery(
+                    retry["delivery_id"], reason="Synthetic failure reviewed"
+                ),
+                reset,
+            )
+            self.assertIsNone(store.claim_authorized_alert_delivery(worker, "worker-4"))
+            with self.assertRaisesRegex(AuthorizationError, "CONSUMED"):
+                operator.authorize_delivery(
+                    retry["delivery_id"], approval_id=retry_approval
+                )
+            fresh=interface.request_delivery_approval(
+                retry["delivery_id"], max_impact="one fresh synthetic alert",
+                expires_at="2099-01-01T00:00:00+00:00",
+            )
+            operator.decide_delivery_approval(
+                retry["delivery_id"], approval_id=fresh, approve=True,
+                reason="Fresh retry approved after review",
+            )
+            reauthorized=operator.authorize_delivery(
+                retry["delivery_id"], approval_id=fresh
+            )
+            self.assertEqual(reauthorized["status"], "AUTHORIZED")
+            store.connection.execute(
+                """UPDATE alert_delivery_outbox SET attempt_count=max_attempts,
+                   lease_owner='crashed-worker', lease_expires_at=? WHERE delivery_id=?""",
+                ("2000-01-01T00:00:00+00:00", retry["delivery_id"]),
+            )
+            store.connection.commit()
+            self.assertIsNone(store.claim_authorized_alert_delivery(worker, "worker-5"))
+            self.assertEqual(
+                store.get_alert_delivery(worker, retry["delivery_id"])["status"], "FAILED"
+            )
+            recovered_failures=[event for event in store.audit_events()
+                                if event["action"] == "FAIL_ALERT_DELIVERY" and
+                                event["details"].get("recovered_from_expired_lease")]
+            self.assertTrue(recovered_failures)
+        finally:
+            store.close()
+
+    def test_delivery_diagnostics_are_scope_filtered(self):
+        store=SeanOSStore(":memory:")
+        try:
+            sean=Actor.sean()
+            for scope, route_id in (("PERSONAL", "personal-route"), ("IAC", "iac-route")):
+                plan=plan_alert_deliveries(
+                    [{"code":"NO_ACTIVE_WORKER", "severity":"CRITICAL", "summary":"none"}],
+                    route=EscalationRoute(route_id, scope, "EMAIL", f"{scope.lower()}-alias"),
+                    owner_scope=scope,
+                )[0]
+                store.record_alert_observation(sean, plan)
+                store.stage_alert_delivery(sean, plan["plan_id"])
+            iac=Actor("iac-reader", frozenset({"IAC"}))
+            diagnostics=store.alert_delivery_diagnostics(iac, "IAC")
+            self.assertEqual(diagnostics["counts"], {"STAGED":1})
+            with self.assertRaises(AuthorizationError):
+                store.alert_delivery_diagnostics(iac, "PERSONAL")
         finally:
             store.close()
 

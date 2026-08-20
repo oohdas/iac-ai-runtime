@@ -40,14 +40,18 @@ PERSONAL records and audit events are not visible to the IAC interface principal
 | `GET /v1/incidents` | IAC interface | Lists active IAC incidents only |
 | `POST /v1/incidents/{id}/resolve` | Sean operator | Records a reasoned local resolution |
 | `GET /v1/deliveries?status=STAGED` | IAC interface | Reviews scope-filtered durable outbox items |
+| `GET /v1/delivery-diagnostics` | IAC interface | Summarizes backlog, lease state, retries, and failed items without execution authority |
 | `POST /v1/deliveries/stage` | IAC interface | Idempotently stages a plan for its incident generation |
 | `POST /v1/deliveries/{id}/request-approval` | IAC interface | Creates one bounded exact pending request |
 | `POST /v1/deliveries/{id}/decision` | Sean operator | Approves or denies the exact request with a reason |
 | `POST /v1/deliveries/{id}/authorize` | Sean operator | Atomically consumes the exact approved action/target/scope |
+| `POST /v1/deliveries/{id}/reset` | Sean operator | Returns only a failed item to `STAGED`; clears prior authorization and requires fresh approval |
 
 Decision and authorization are separate restart-safe steps. An approved request can
 be recovered after interruption without repeating Sean's decision. None of these
 routes invokes the synthetic adapter or a network delivery implementation.
+Reset is a recovery-state mutation only: it cannot claim, execute, authorize, or
+complete an outbox item.
 
 ## Production prerequisites
 

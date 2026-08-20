@@ -131,6 +131,8 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
                 except ValidationError as exc:
                     self._json(400, {"error":"invalid_request", "message":str(exc)})
                 return
+            if parts == ["v1","delivery-diagnostics"]:
+                self._json(200, {"diagnostics":gateway.delivery_diagnostics()}); return
             if len(parts) == 4 and parts[:2] == ["v1","commands"] and parts[3] in {"status","result"}:
                 work_id=parts[2]
                 try:
@@ -163,7 +165,7 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
                     self._json(400, {"error":"invalid_request", "message":str(exc)})
                 return
             if (len(parts) == 4 and parts[:2] == ["v1","deliveries"] and
-                    parts[3] in {"decision", "authorize"}):
+                    parts[3] in {"decision", "authorize", "reset"}):
                 if not self._operator_auth_or_reject(parts[2]): return
                 try:
                     request=self._request_json()
@@ -178,11 +180,18 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
                             approve=request["approve"], reason=request["reason"],
                         )
                         self._json(200, {"approval_id":request["approval_id"], "status":status})
-                    else:
+                    elif parts[3] == "authorize":
                         if set(request) != {"approval_id"} or not isinstance(request["approval_id"], str):
                             raise ValidationError("Delivery authorization fields are invalid")
                         delivery=operator_gateway.authorize_delivery(
                             parts[2], approval_id=request["approval_id"]
+                        )
+                        self._json(200, {"delivery":delivery})
+                    else:
+                        if set(request) != {"reason"} or not isinstance(request["reason"], str):
+                            raise ValidationError("Delivery reset fields are invalid")
+                        delivery=operator_gateway.reset_failed_delivery(
+                            parts[2], reason=request["reason"]
                         )
                         self._json(200, {"delivery":delivery})
                 except (ValidationError, AuthorizationError, ValueError, TypeError,

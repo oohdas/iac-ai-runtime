@@ -5,23 +5,23 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 17:30 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 17:34 EDT
-- Milestone selected: restart-safe synthetic outbox processing
+- Last continuous-goal checkpoint started: 2026-08-20 17:35 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 17:37 EDT
+- Milestone selected: delivery diagnostics and non-executing recovery controls
 - Run state: Completed; scheduled builder paused and continuous goal active
-- Last meaningful milestone: leased, retry-bounded synthetic delivery in the single worker
+- Last meaningful milestone: scope-safe delivery diagnostics and fresh-approval recovery
 - Deployed commit: `1aa8762`
 - Runtime: Online, private, one replica, persistent volume attached
-- Concrete changes: added schema-v11 lease/retry fields and preservation migration;
-  atomic crash recovery; three-attempt terminal failure; kill-switch enforcement;
-  health escalation; exact default-off container mode; and isolated process proof
-- Verification: 115 tests passed; schema-v11 release and recovery gates passed
+- Concrete changes: added derived backlog/lease/retry diagnostics, report attention,
+  ordinary-interface read access, Sean-operator failed-item reset, expired-lease audit,
+  scope isolation, and mandatory fresh approval after recovery
+- Verification: 116 tests passed; schema-v11 release and recovery gates passed
 - Real data connected: No
 - Live integrations enabled: No
 - Current blocker: executing the production drill or delivering an alert requires
   Sean's separate exact approval; neither is needed for continued local development
-- Next milestone: add delivery backlog/lease diagnostics and recovery controls to the
-  operator interface and reports without granting manual execution authority
+- Next milestone: run a requirement-by-requirement local completion audit and produce
+  the exact production-change set and approvals needed for the next deployment
 - Sean action required: No
 
 ## Recent verified milestones
@@ -59,6 +59,8 @@ Every automation run updates it, even when no notification is sent.
     and keeps Sean's decision and exact authorization as separate recoverable steps.
 19. Schema v11 adds default-off leased synthetic processing to the existing worker,
     bounded crash recovery/retries, kill-switch enforcement, and terminal health alerts.
+20. Reports and the primary interface now expose scope-safe delivery diagnostics;
+    Sean-only reset revokes prior authorization and leaves work staged for fresh approval.
 
 ## Update contract
 

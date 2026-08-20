@@ -65,6 +65,11 @@ The continuous runtime is implemented and verified locally. It is not yet a 24/7
 45. Exhausted synthetic delivery becomes `FAILED`, makes scoped runtime health
     unhealthy, and emits a local `ALERT_DELIVERY_FAILED` classification; it never
     falls through to a live adapter, network call, or external effect.
+46. Delivery diagnostics derive scope-filtered backlog, lease, retry, and terminal
+    state without exposing another ownership scope or granting execution authority.
+47. Only Sean may reset `FAILED` delivery to `STAGED`; reset clears the consumed
+    approval and attempt state, performs no execution, and requires a fresh exact
+    approval before the worker can claim it again.
 
 ## Local verification
 
@@ -139,6 +144,9 @@ Expected evidence:
 - an isolated worker-process test consumes an exactly approved outbox item only when
   `--synthetic-delivery` is explicit and records a receipt proving both
   `network_used=false` and `external_effect=false`.
+- operational reports and the primary interface expose delivery attention without
+  destination secrets; the ordinary credential cannot reset failed work, while a
+  separately authenticated reset remains staged and unclaimable until fresh approval.
 
 ## Continuous verification
 

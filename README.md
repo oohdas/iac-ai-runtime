@@ -57,6 +57,8 @@ This build intentionally uses Python's standard library and SQLite so it can be 
   flow with ordinary IAC and Sean-operator credentials kept separate
 - Default-off single-worker synthetic outbox processing with durable leases, crash
   recovery, bounded retry exhaustion, kill-switch enforcement, and failed-work health
+- Scope-safe backlog/lease diagnostics in the primary interface and reports, plus a
+  Sean-only failed-item reset that revokes prior authorization and requires fresh approval
 - Chief of Staff portfolio scoring, capacity allocation, low-fit challenge, and safe agent-only pausing
 - Revenue comparison across outbound, existing/inactive customers, quotes, inbound, and new channels
 - Capacity-adjusted expected return using margin, probability, cost, Sean time, strategic fit, and evidence

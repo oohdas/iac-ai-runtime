@@ -96,6 +96,32 @@ class InterfaceHTTPTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body["deliveries"][0]["delivery_id"], delivery_id)
 
+        self.store.connection.execute(
+            """UPDATE alert_delivery_outbox SET status='FAILED', attempt_count=3,
+               last_error='Synthetic adapter fault' WHERE delivery_id=?""",
+            (delivery_id,),
+        )
+        self.store.connection.commit()
+        status, body=self.request(
+            "GET", "/v1/delivery-diagnostics", self.interface_token
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(body["diagnostics"]["failed"], 1)
+        self.assertFalse(body["diagnostics"]["manual_execution_authorized"])
+
+        status, body=self.request(
+            "POST", f"/v1/deliveries/{delivery_id}/reset", self.interface_token,
+            {"reason":"Synthetic failure reviewed"},
+        )
+        self.assertEqual((status, body["error"]), (403, "operator_authorization_required"))
+        status, body=self.request(
+            "POST", f"/v1/deliveries/{delivery_id}/reset", self.operator_token,
+            {"reason":"Synthetic failure reviewed"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(body["delivery"]["status"], "STAGED")
+        self.assertIsNone(body["delivery"]["approval_id"])
+
 
 if __name__ == "__main__":
     unittest.main()

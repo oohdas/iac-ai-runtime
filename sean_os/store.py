@@ -466,6 +466,17 @@ class SeanOSStore:
         result=dict(row); result["alert_payload"]=json.loads(result["alert_payload"])
         if result["receipt_payload"]:
             result["receipt_payload"]=json.loads(result["receipt_payload"])
+        if result["status"] == "AUTHORIZED":
+            if not result["lease_owner"]:
+                result["lease_state"]="UNCLAIMED"
+            elif (result["lease_expires_at"] and
+                  datetime.fromisoformat(result["lease_expires_at"]) <= datetime.now(timezone.utc)):
+                result["lease_state"]="EXPIRED"
+            else:
+                result["lease_state"]="ACTIVE"
+        else:
+            result["lease_state"]="NONE"
+        result["attempts_remaining"]=max(0, result["max_attempts"]-result["attempt_count"])
         return result
 
     def list_alert_deliveries(
@@ -484,6 +495,76 @@ class SeanOSStore:
         sql += " ORDER BY created_at DESC, delivery_id"
         return [self.get_alert_delivery(actor, row["delivery_id"])
                 for row in self.connection.execute(sql, parameters)]
+
+    def alert_delivery_diagnostics(self, actor: Actor, scope: str) -> dict[str, Any]:
+        deliveries=self.list_alert_deliveries(actor, scope)
+        counts: dict[str, int]={}
+        for delivery in deliveries:
+            counts[delivery["status"]]=counts.get(delivery["status"], 0)+1
+        attention=[{
+            "delivery_id":item["delivery_id"],
+            "status":item["status"],
+            "lease_state":item["lease_state"],
+            "attempt_count":item["attempt_count"],
+            "max_attempts":item["max_attempts"],
+            "attempts_remaining":item["attempts_remaining"],
+            "available_at":item["available_at"],
+            "last_error":item["last_error"],
+        } for item in deliveries
+            if item["status"] == "FAILED" or item["lease_state"] == "EXPIRED"]
+        authorized=[item for item in deliveries if item["status"] == "AUTHORIZED"]
+        result={
+            "scope":scope,
+            "counts":counts,
+            "authorized_backlog":len(authorized),
+            "active_leases":sum(item["lease_state"] == "ACTIVE" for item in authorized),
+            "expired_leases":sum(item["lease_state"] == "EXPIRED" for item in authorized),
+            "failed":counts.get("FAILED", 0),
+            "oldest_authorized_item_created_at":min(
+                (item["created_at"] for item in authorized), default=None
+            ),
+            "attention":attention,
+            "manual_execution_authorized":False,
+        }
+        self._audit(actor, "READ_ALERT_DELIVERY_DIAGNOSTICS", "ALLOWED",
+                    "Scope-safe delivery diagnostics returned",
+                    details={"scope":scope, "attention_count":len(attention)})
+        return result
+
+    def reset_failed_alert_delivery(
+        self, actor: Actor, delivery_id: str, *, reason: str
+    ) -> dict[str, Any]:
+        if not actor.is_sean:
+            raise AuthorizationError("Only Sean may reset failed alert delivery")
+        if not reason.strip():
+            raise ValidationError("Alert delivery reset requires a reason")
+        if secret_findings({"reason":reason}):
+            raise ValidationError("Secret-like material is prohibited in recovery evidence")
+        row=self.connection.execute(
+            "SELECT * FROM alert_delivery_outbox WHERE delivery_id=?", (delivery_id,)
+        ).fetchone()
+        if row is None:
+            raise ValidationError("Alert delivery not found")
+        self._authorize(actor, row["owner_scope"], (), "write")
+        if (row["status"] == "STAGED" and row["approval_id"] is None and
+                row["attempt_count"] == 0 and
+                row["last_error"] == "Recovery reset; fresh approval required"):
+            return self.get_alert_delivery(actor, delivery_id)
+        if row["status"] != "FAILED":
+            raise ValidationError("Only failed alert delivery may be reset")
+        stamp=now()
+        self.connection.execute(
+            """UPDATE alert_delivery_outbox SET status='STAGED', approval_id=NULL,
+               attempt_count=0, available_at=?, lease_owner=NULL, lease_expires_at=NULL,
+               last_error='Recovery reset; fresh approval required', receipt_payload=NULL,
+               delivered_at=NULL, updated_at=? WHERE delivery_id=? AND status='FAILED'""",
+            (stamp, stamp, delivery_id),
+        )
+        self.connection.commit()
+        self._audit(actor, "RESET_ALERT_DELIVERY", "ALLOWED", reason, delivery_id,
+                    {"scope":row["owner_scope"], "next_status":"STAGED",
+                     "fresh_approval_required":True, "manual_execution_authorized":False})
+        return self.get_alert_delivery(actor, delivery_id)
 
     def request_alert_delivery_approval(
         self, actor: Actor, delivery_id: str, *, max_impact: str, expires_at: str
@@ -604,6 +685,13 @@ class SeanOSStore:
         lease=(datetime.now(timezone.utc)+timedelta(seconds=lease_seconds)).isoformat()
         placeholders=",".join("?" for _ in allowed_scopes)
         self.connection.execute("BEGIN IMMEDIATE")
+        terminal_rows=self.connection.execute(
+            f"""SELECT delivery_id, owner_scope FROM alert_delivery_outbox
+                WHERE status='AUTHORIZED' AND attempt_count>=max_attempts
+                AND (lease_owner IS NULL OR lease_expires_at<=?)
+                AND owner_scope IN ({placeholders})""",
+            (stamp, *allowed_scopes),
+        ).fetchall()
         self.connection.execute(
             f"""UPDATE alert_delivery_outbox SET status='FAILED',
                    last_error='Lease expired after maximum attempts', updated_at=?,
@@ -623,7 +711,13 @@ class SeanOSStore:
             (stamp, stamp, *allowed_scopes),
         ).fetchone()
         if row is None:
-            self.connection.commit(); return None
+            self.connection.commit()
+            for terminal in terminal_rows:
+                self._audit(actor, "FAIL_ALERT_DELIVERY", "FAILED",
+                            "Lease expired after maximum attempts", terminal["delivery_id"],
+                            {"scope":terminal["owner_scope"], "next_status":"FAILED",
+                             "network_used":False, "recovered_from_expired_lease":True})
+            return None
         cursor=self.connection.execute(
             """UPDATE alert_delivery_outbox SET lease_owner=?, lease_expires_at=?,
                attempt_count=attempt_count+1, updated_at=?
@@ -634,6 +728,11 @@ class SeanOSStore:
         if cursor.rowcount != 1:
             self.connection.rollback(); return None
         self.connection.commit()
+        for terminal in terminal_rows:
+            self._audit(actor, "FAIL_ALERT_DELIVERY", "FAILED",
+                        "Lease expired after maximum attempts", terminal["delivery_id"],
+                        {"scope":terminal["owner_scope"], "next_status":"FAILED",
+                         "network_used":False, "recovered_from_expired_lease":True})
         claimed=self.get_alert_delivery(actor, row["delivery_id"])
         self._audit(actor, "CLAIM_ALERT_DELIVERY", "ALLOWED",
                     "Authorized synthetic delivery lease acquired", row["delivery_id"],

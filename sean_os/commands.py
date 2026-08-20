@@ -190,6 +190,11 @@ class CommandGateway:
             raise AuthorizationError("v0.1 delivery interface is isolated to IAC scope")
         return self.store.list_alert_deliveries(self.actor, scope, status=status)
 
+    def delivery_diagnostics(self, *, scope: str = "IAC") -> dict[str, Any]:
+        if scope != "IAC":
+            raise AuthorizationError("v0.1 delivery interface is isolated to IAC scope")
+        return self.store.alert_delivery_diagnostics(self.actor, scope)
+
     def stage_delivery(self, plan_id: str, *, scope: str = "IAC") -> dict[str, Any]:
         if scope != "IAC":
             raise AuthorizationError("v0.1 delivery interface is isolated to IAC scope")
@@ -244,4 +249,18 @@ class CommandGateway:
             raise AuthorizationError("Alert delivery is outside the interface scope")
         return self.store.authorize_alert_delivery(
             self.actor, delivery_id, approval_id=approval_id
+        )
+
+    def reset_failed_delivery(
+        self, delivery_id: str, *, reason: str, scope: str = "IAC"
+    ) -> dict[str, Any]:
+        if scope != "IAC":
+            raise AuthorizationError("v0.1 delivery interface is isolated to IAC scope")
+        if not self.actor.is_sean:
+            raise AuthorizationError("Only Sean's authenticated interface may reset delivery")
+        delivery=self.store.get_alert_delivery(self.actor, delivery_id)
+        if delivery["owner_scope"] != scope:
+            raise AuthorizationError("Alert delivery is outside the interface scope")
+        return self.store.reset_failed_alert_delivery(
+            self.actor, delivery_id, reason=reason
         )
