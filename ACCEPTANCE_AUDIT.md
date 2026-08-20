@@ -30,7 +30,7 @@ production drill; live integrations remain later, separately approved activation
 ## Canonical reproduction
 
 Run `python3 scripts/verify_release.py`. The 2026-08-20 release candidate passes
-compilation, 125 automated tests, bridge-integrity and container/workflow safety
+compilation, 126 automated tests, bridge-integrity and container/workflow safety
 checks, plus a manifested schema-v12 backup/restore drill. Direct regression anchors
 include `test_primary_interface_can_create_query_update_and_link_core_records`,
 `test_full_idea_to_approval_decision_to_report_scenario`,

@@ -5,28 +5,30 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 17:52 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 18:08 EDT
-- Milestone selected: fail-closed no-upgrade schema-v12 production release
-- Run state: Completed locally; revised exact production approval is required
-- Last meaningful milestone: schema migration now has verified backup, automatic
-  rollback, and a database-closed recovery hold without requiring Railway Pro
+- Last continuous-goal checkpoint started: 2026-08-20 19:20 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 19:26 EDT
+- Milestone selected: guarded schema-v12 release execution and startup regression
+- Run state: Production safely rolled back; tested hotfix awaits exact retry approval
+- Last meaningful milestone: the failed candidate never opened the database, the
+  baseline recovered automatically, and the exact container startup gap now has regression proof
 - Deployed commit: `1aa8762`
-- Runtime: Online, private, one replica, persistent volume attached
-- Concrete changes: safely aborted the unavailable native-backup path and restored
-  baseline `1aa8762`; added a mode-0600 SHA-256 pre-migration backup and manifest,
-  automatic restoration on migration failure, explicit approval-gated restore, a
-  database-closed recovery hold, release-gate invariants, tests, and revised runbooks
-- Verification: canonical gate passed compilation, 125 tests, bridge, container,
-  migration-guard, recovery-hold, workflow, and manifested restore checks
+- Runtime: Online on rollback deployment `416bd9e9-7220-42a5-95b6-bca5c44a249f`,
+  private, one replica, original persistent volume attached
+- Remote main: `710b197`; GitHub verification run #7 passed, but Railway candidate
+  `e4fcd3f8-c5fb-4d8c-8f25-53610650023c` failed before database open because the
+  direct script could not resolve the application package
+- Concrete changes: added an explicit application-root bootstrap before package
+  import, a direct-script regression test that reproduces Railway's launch context,
+  a release-gate invariant, and a clean-container runtime smoke test after image build
+- Verification: canonical gate passes compilation, 126 tests, bridge, container,
+  migration guard, recovery hold, workflow safety, and manifested restore checks
 - Real data connected: No
 - Live integrations enabled: No
-- Current blocker: the approved native Railway backup is Pro-only on Hobby; the
-  safer no-upgrade mechanism changes the exact release package and requires renewed approval
-- Next milestone: push the exact guarded head, observe automatic deployment, verify
+- Current blocker: retrying production requires an exact approval for the new hotfix commit
+- Next milestone: push the exact hotfix head, observe automatic deployment, verify
   pre-migration evidence/schema v12/health, and invoke recovery only on a failed gate
-- Sean action required: Yes — approve the revised no-upgrade package in
-  `PRODUCTION_DECISION.md`; no new source has been pushed or deployed
+- Sean action required: Yes — approve the exact hotfix retry in
+  `PRODUCTION_DECISION.md`; production is healthy and unchanged at schema v7
 
 ## Recent verified milestones
 
@@ -71,6 +73,9 @@ Every automation run updates it, even when no notification is sent.
 22. The failed native-backup attempt was aborted without a source change, baseline
     was restored, and the release now fails closed around migration using a verified
     same-volume backup, automatic restore, and recovery hold; all 125 tests pass.
+23. Exact commit `710b197` passed GitHub but failed its direct container import before
+    touching the database. The approved rollback restored baseline `1aa8762`; a direct-
+    script regression and post-build container runtime smoke now close that test gap.
 
 ## Update contract
 

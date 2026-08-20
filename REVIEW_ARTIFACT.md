@@ -11,6 +11,8 @@ The IAC-owned local `main` branch is a release candidate against deployed baseli
   repository review, changed paths, tests, activity, and budgeted cost;
 - tested deployed-baseline schema v7→v12 migration, updated operational evidence,
   fail-closed same-volume migration backup/restore, recovery hold, and no live adapter.
+- direct Railway-style script import bootstrap, an exact regression test, and a
+  post-build container runtime smoke check that rejects tracebacks or early exit.
 
 ## Canonical verification
 

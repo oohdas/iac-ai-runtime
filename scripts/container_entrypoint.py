@@ -9,6 +9,10 @@ from pathlib import Path
 import sys
 from typing import Mapping
 
+APP_ROOT=Path(__file__).resolve().parents[1]
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+
 from sean_os.migration_guard import guarded_migrate, restore_pre_migration_backup
 
 

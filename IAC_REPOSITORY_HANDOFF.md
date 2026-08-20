@@ -12,12 +12,14 @@
 ## Release evidence
 
 - Canonical gate: `python3 scripts/verify_release.py`
-- Runtime tests: 125 passing in the canonical release gate
+- Runtime tests: 126 passing in the canonical release gate
 - Schema: restart-safe additive migration from deployed v7 to release v12
 - Migration recovery: verified SHA-256 same-volume backup, automatic restore on
   migration failure, and explicit database-closed recovery hold
 - Recovery and kill-switch drills: included in the canonical gate
 - GitHub workflow: read-only verification plus container build; no deploy step
+- Container proof: the workflow now starts the built image, requires migration-guard
+  evidence, requires the process to remain running, and rejects any traceback
 - Bridge contract: unchanged and verified by its committed schema hash
 
 ## Controlled handoff sequence

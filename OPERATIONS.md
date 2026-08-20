@@ -80,6 +80,9 @@ customer action, or paid model service is connected.
 49. An older production schema is verified and copied to a mode-0600, SHA-256
     manifested backup before migration. Migration failure restores that backup and
     denies worker startup; explicit recovery restores and enters a database-closed hold.
+50. The direct container entrypoint bootstraps `/app` before application imports,
+    and continuous verification must run the built image, observe migration-guard
+    evidence, confirm it remains running, and reject every startup traceback.
 
 ## Local verification
 

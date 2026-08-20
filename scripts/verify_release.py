@@ -45,6 +45,7 @@ def main() -> int:
         raise SystemExit("Railway volumes must be attached by the platform, not declared in Dockerfile")
     entrypoint = (ROOT / "scripts" / "container_entrypoint.py").read_text(encoding="utf-8")
     required_privilege_drop = (
+        "sys.path.insert(0, str(APP_ROOT))",
         "os.chown(database.parent, WORKER_UID, WORKER_GID)",
         "os.setgroups([])",
         "os.setgid(WORKER_GID)",

@@ -1,9 +1,34 @@
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import unittest
 
 from scripts.container_entrypoint import requested_restore_version, worker_arguments
 
 
 class ContainerEntrypointTests(unittest.TestCase):
+    def test_direct_script_bootstraps_application_import_path(self):
+        root=Path(__file__).resolve().parents[1]
+        script=root / "scripts" / "container_entrypoint.py"
+        check=(
+            "import runpy,sys\n"
+            "from pathlib import Path\n"
+            f"root=Path({str(root)!r})\n"
+            "sys.path=[str(root/'scripts')]+[item for item in sys.path "
+            "if item and Path(item).resolve()!=root]\n"
+            f"runpy.run_path({str(script)!r}, run_name='container_entrypoint_import_smoke')\n"
+        )
+        environment=dict(os.environ)
+        environment.pop("PYTHONPATH", None)
+        with tempfile.TemporaryDirectory() as isolated_directory:
+            completed=subprocess.run(
+                [sys.executable, "-c", check], cwd=isolated_directory,
+                env=environment, text=True, capture_output=True, check=False,
+            )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
     def test_monitoring_is_disabled_when_environment_is_unset(self):
         self.assertEqual(
             worker_arguments({"SEAN_OS_DATABASE": "/data/iac-ai.db"}),

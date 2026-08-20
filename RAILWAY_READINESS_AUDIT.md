@@ -34,13 +34,19 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
 - Baseline `1aa8762` was restored immediately as successful deployment
   `e1e91a4c-7ee0-47cd-b2b9-880575d4e457`; one running instance and the original
   `/data` volume were reverified.
+- Approved commit `710b197` passed GitHub workflow run #7 and built on Railway, but
+  runtime logs showed `ModuleNotFoundError: No module named 'sean_os'` before the
+  database was opened. The already-approved rollback restored baseline `1aa8762`
+  as successful deployment `416bd9e9-7220-42a5-95b6-bca5c44a249f` with one running
+  instance, private exposure, and the original `/data` volume.
 - The local container entrypoint now has a default-off, all-or-none environment
   contract for integrated non-delivering monitoring. No monitoring route variable
   has been added to Railway, and no alert destination or delivery is authorized.
-- The reviewed local branch now has a same-volume, verified pre-migration backup,
+- The reviewed local hotfix now has a same-volume, verified pre-migration backup,
   automatic restore, and recovery-hold guard. This protects the v7→v12 release but
-  does not satisfy independent disaster recovery. No later commit is authorized
-  for push until the revised no-upgrade package is approved.
+  does not satisfy independent disaster recovery. It also bootstraps direct-script
+  imports and makes CI run the built container entrypoint. No hotfix commit is
+  authorized for push until the retry package is approved.
 
 ## Required pre-deployment controls
 

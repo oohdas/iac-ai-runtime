@@ -57,7 +57,7 @@ Current Railway evidence and unresolved controls are recorded in
 ## Further Sean approval required
 
 - [x] Isolated IAC Railway pilot, one persistent volume, and $10/$15 spend controls.
-- [ ] Push and automatic deployment of the revised guarded schema-v12 candidate.
+- [ ] Push and automatic deployment of the guarded direct-entrypoint hotfix.
 - [ ] Production backup destination, encryption ownership, retention, and restore drill.
 - [ ] Any connection to Claude, email, calendar, ShopVox, QuickBooks Online, QNAP, RBC, or customers.
 - [ ] Any handler capable of sending messages, changing external records, deploying code, or moving money.

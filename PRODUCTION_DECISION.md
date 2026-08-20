@@ -1,20 +1,24 @@
-# Sean OS v0.1 — Revised Production Decision
+# Sean OS v0.1 — Production Retry Decision
 
 ## Current status
 
-- The private IAC Railway pilot is back on healthy baseline `1aa8762`, deployment
-  `e1e91a4c-7ee0-47cd-b2b9-880575d4e457`, with one replica and `/data` attached.
+- The private IAC Railway pilot is back on healthy baseline `1aa8762`, rollback
+  deployment `416bd9e9-7220-42a5-95b6-bca5c44a249f`, with one replica and `/data` attached.
 - The approved native-backup release was stopped before any push after Railway's
   Backups page showed that backups/PITR require Pro. No backup, plan upgrade,
   variable change, or new-source deployment occurred.
-- The reviewed local release now includes a fail-closed v7→v12 migration guard.
+- Exact commit `710b197` passed GitHub verification but its Railway container failed
+  before database open because direct script execution could not resolve `sean_os`.
+  Schema v7 was untouched and the approved rollback completed.
+- The local hotfix bootstraps the application root before import and adds both an
+  exact direct-script regression and a post-build container runtime smoke test.
   It is not yet pushed.
 
 ## Revised decision required
 
-Approve one controlled no-upgrade release package:
+Approve one controlled no-upgrade retry package:
 
-1. push the clean, release-gated local `main` range after `1aa8762` to
+1. push the clean, release-gated hotfix on top of `710b197` to
    `oohdas/iac-ai-runtime/main`, allowing the existing automatic deployment;
 2. before schema migration, let the entrypoint create a verified SHA-256 backup
    and manifest beside the database on the attached `/data` volume;
@@ -23,7 +27,7 @@ Approve one controlled no-upgrade release package:
    variable unchanged and disabled;
 5. verify one replica, private exposure, `/data`, schema v12, IAC scope profile,
    integrity, uid/gid 10001, backup evidence, and healthy startup;
-6. if migration fails, select Railway's known-good baseline deployment and roll
+6. if import or migration fails, select Railway's known-good baseline deployment and roll
    back only after confirming the automatic restore returned the database to v7;
 7. if migration succeeds but a later release check fails, stop the worker, set
    `SEAN_OS_RESTORE_SCHEMA_VERSION=7` for one candidate deployment, verify its

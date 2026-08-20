@@ -25,3 +25,19 @@ jobs:
         run: python scripts/verify_release.py
       - name: Build production container
         run: docker build --tag iac-ai-runtime:verify .
+      - name: Smoke-test production container entrypoint
+        run: |
+          container_id="$(docker run --detach --rm iac-ai-runtime:verify)"
+          trap 'docker stop "$container_id" >/dev/null 2>&1 || true' EXIT
+          for attempt in {1..10}; do
+            docker logs "$container_id" > /tmp/iac-ai-container.log 2>&1 || true
+            if grep -F '"migration_guard"' /tmp/iac-ai-container.log; then
+              break
+            fi
+            sleep 1
+          done
+          test "$(docker inspect --format '{{.State.Running}}' "$container_id")" = true
+          grep -F '"migration_guard"' /tmp/iac-ai-container.log
+          if grep -F 'Traceback' /tmp/iac-ai-container.log; then
+            exit 1
+          fi
