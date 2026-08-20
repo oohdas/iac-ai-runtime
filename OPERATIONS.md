@@ -51,6 +51,7 @@ python3 scripts/status.py
 python3 scripts/healthcheck.py --database sean-os-local.db
 python3 scripts/recovery_drill.py
 python3 scripts/kill_switch_drill.py
+python3 scripts/monitor_snapshot.py --database sean-os-local.db
 python3 scripts/verify_release.py
 ```
 
@@ -61,6 +62,8 @@ Expected evidence:
 - foreign-key violations are empty;
 - no real data or production deployment is reported.
 - the isolated kill-switch drill blocks work, records audit evidence, and recovers.
+- monitoring classifies stale-worker, policy, dead-letter, budget, approval,
+  integrity, kill-switch, no-worker, and backup failures without delivering alerts.
 
 ## Continuous verification
 

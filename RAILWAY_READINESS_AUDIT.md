@@ -40,7 +40,10 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
 7. [x] Verify successful startup against the volume-backed IAC database.
 8. [ ] Verify runtime uid, production kill switch, production backup, isolated
    restore, and alert delivery before broader production approval. Restart and
-   volume-remount persistence have been verified.
+   volume-remount persistence have been verified. Deterministic local alert
+   classification now covers stale workers, blocked work, dead letters, budget
+   stops, integrity failures, kill-switch activation, and backup failure;
+   external delivery is intentionally not configured.
 9. [ ] Create `SEAN_OS_INTERFACE_TOKEN` only if a separate authenticated
    interface service is approved; the private worker pilot does not require it.
 
