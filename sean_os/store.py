@@ -567,16 +567,36 @@ class SeanOSStore:
 
     def runtime_health(
         self, *, stale_after_seconds: int = 90, require_active_worker: bool = False,
+        scope: str | None = None,
     ) -> dict[str, Any]:
+        if scope is not None:
+            scope=scope.upper()
+            if scope not in SCOPES:
+                raise ValidationError("Runtime health scope is invalid")
+            if scope not in self.allowed_scopes:
+                raise AuthorizationError(
+                    f"{scope} is outside the database's {self.scope_profile} scope profile"
+                )
         cutoff=(datetime.now(timezone.utc)-timedelta(seconds=stale_after_seconds)).isoformat()
-        workers=[dict(r) for r in self.connection.execute("SELECT * FROM worker_heartbeats ORDER BY worker_id")]
+        worker_sql="SELECT * FROM worker_heartbeats"
+        worker_parameters: tuple[Any, ...]=()
+        if scope is not None:
+            worker_sql += " WHERE owner_scope=?"; worker_parameters=(scope,)
+        worker_sql += " ORDER BY worker_id"
+        workers=[dict(r) for r in self.connection.execute(worker_sql, worker_parameters)]
         for worker in workers:
             worker["stale"]=worker["status"] not in {"STOPPED"} and worker["last_seen_at"] < cutoff
             worker["details"]=json.loads(worker["details"])
+        queue_sql="SELECT status, COUNT(*) AS count FROM work_queue"
+        queue_parameters: tuple[Any, ...]=()
+        if scope is not None:
+            queue_sql += " WHERE owner_scope=?"; queue_parameters=(scope,)
+        queue_sql += " GROUP BY status"
         counts={r["status"]: r["count"] for r in self.connection.execute(
-            "SELECT status, COUNT(*) AS count FROM work_queue GROUP BY status"
+            queue_sql, queue_parameters
         )}
-        budgets=[self.budget_status(scope) for scope in sorted(SCOPES)]
+        budget_scopes=(scope,) if scope is not None else tuple(sorted(self.allowed_scopes))
+        budgets=[self.budget_status(item_scope) for item_scope in budget_scopes]
         integrity=self.integrity_check()
         active_workers=[w for w in workers if w["status"] != "STOPPED" and not w["stale"]]
         healthy=(integrity["ok"] and not self.kill_switch_enabled()

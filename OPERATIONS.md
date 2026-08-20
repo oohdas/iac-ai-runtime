@@ -48,6 +48,8 @@ The continuous runtime is implemented and verified locally. It is not yet a 24/7
     single worker when explicitly configured, and cannot create another replica.
 39. Alert incidents are keyed by scope, route, and alert class; only Sean can
     resolve them, and a recurring condition automatically reopens the same incident.
+40. Daily and weekly reports include only active incidents and health data from
+    their own scope, remain local-only, and exclude resolved incident history.
 
 ## Local verification
 
@@ -106,6 +108,8 @@ Expected evidence:
   occurrences, scope-filters reads, and permits one immutable Sean-only local
   acknowledgement; it also maintains resolvable/reopenable incidents without adding
   a delivery capability.
+- daily/weekly reports rank active incidents by severity, show changes since the
+  prior report, and never expose another scope's workers, queue, or budgets.
 
 ## Continuous verification
 

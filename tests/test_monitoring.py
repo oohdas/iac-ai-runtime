@@ -3,7 +3,8 @@ import tempfile
 from pathlib import Path
 
 from sean_os import (
-    Actor, AuthorizationError, EscalationRoute, RuntimeMonitor, SeanOSStore, ValidationError,
+    Actor, AuthorizationError, EscalationRoute, ReportingService, RuntimeMonitor,
+    SeanOSStore, ValidationError,
     acknowledge_alert_plan, classify_alerts,
     deduplicate_alert_plans, plan_alert_deliveries,
 )
@@ -246,6 +247,61 @@ class MonitoringTests(unittest.TestCase):
                 self.assertNotEqual(first["plan_id"], second["plan_id"])
                 self.assertEqual(first_incident["incident_id"], second_incident["incident_id"])
                 self.assertEqual(second_incident["current_summary"], "2 items")
+            finally:
+                store.close()
+
+    def test_operational_report_includes_only_active_scoped_incidents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SeanOSStore(Path(directory) / "reports.db")
+            try:
+                monitor = Actor("monitor", frozenset({"IAC"}))
+                route = EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias")
+                high = plan_alert_deliveries(
+                    [{"code": "BUDGET_BLOCKED", "severity": "HIGH", "summary": "blocked"}],
+                    route=route, owner_scope="IAC",
+                )[0]
+                critical = plan_alert_deliveries(
+                    [{"code": "DEAD_LETTER", "severity": "CRITICAL", "summary": "failed"}],
+                    route=route, owner_scope="IAC",
+                )[0]
+                high_incident = store.record_alert_observation(monitor, high)["incident"]
+                store.record_alert_observation(monitor, critical)
+                report = ReportingService(store, monitor).generate(
+                    "DAILY", "IAC", period_key="2030-01-01"
+                )
+                self.assertEqual(report["headline"], "ATTENTION REQUIRED")
+                self.assertEqual(
+                    [item["severity"] for item in report["active_incidents"]],
+                    ["CRITICAL", "HIGH"],
+                )
+                self.assertEqual(report["delivery"], "LOCAL_ONLY")
+                store.resolve_alert_incident(
+                    Actor.sean(), high_incident["incident_id"], reason="Synthetic recovery verified"
+                )
+                next_report = ReportingService(store, monitor).generate(
+                    "DAILY", "IAC", period_key="2030-01-02"
+                )
+                self.assertEqual(len(next_report["active_incidents"]), 1)
+                self.assertEqual(next_report["changes_since_prior"]["active_incident_delta"], -1)
+            finally:
+                store.close()
+
+    def test_operational_report_health_excludes_other_scope_queue(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SeanOSStore(Path(directory) / "reports.db")
+            try:
+                iac = Actor("iac-agent", frozenset({"IAC"}))
+                store.enqueue_work(iac, "NOOP", "IAC", {})
+                store.enqueue_work(Actor.sean(), "NOOP", "PERSONAL", {})
+                store.configure_budget(Actor.sean(), "IAC", 10)
+                store.configure_budget(Actor.sean(), "PERSONAL", 20)
+                report = ReportingService(store, iac).generate(
+                    "DAILY", "IAC", period_key="2030-01-01"
+                )
+                self.assertEqual(report["health"]["queue"]["QUEUED"], 1)
+                self.assertTrue(
+                    all(item["owner_scope"] == "IAC" for item in report["health"]["budgets"])
+                )
             finally:
                 store.close()
 

@@ -190,7 +190,8 @@ def capture_monitor_snapshot(
 ) -> dict[str, Any]:
     """Capture health and optionally persist plans, with no delivery capability."""
     health = store.runtime_health(
-        stale_after_seconds=stale_after_seconds, require_active_worker=True
+        stale_after_seconds=stale_after_seconds, require_active_worker=True,
+        scope=route.owner_scope if route is not None else None,
     )
     alerts = classify_alerts(health, backup_ok=backup_ok)
     observations = []

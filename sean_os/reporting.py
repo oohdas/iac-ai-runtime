@@ -35,7 +35,7 @@ class ReportingService:
         ).fetchone()
         prior=json.loads(prior_row["payload"]) if prior_row else None
 
-        health = self.store.runtime_health()
+        health = self.store.runtime_health(scope=scope)
         queue_rows = self.store.connection.execute(
             """SELECT id, task_type, status, last_error, updated_at FROM work_queue
                WHERE owner_scope=? AND status IN
@@ -43,6 +43,8 @@ class ReportingService:
                ORDER BY updated_at, id""", (scope,),
         ).fetchall()
         attention = [dict(row) for row in queue_rows]
+        incidents=(self.store.active_alert_incidents(self.actor, scope)
+                   if scope in {"PERSONAL", "IAC"} else [])
         approvals = [dict(row) for row in self.store.connection.execute(
             """SELECT record_id, action_type, target, max_impact, status, expires_at
                FROM approvals WHERE scope=? ORDER BY expires_at, record_id""",
@@ -79,17 +81,28 @@ class ReportingService:
             recommendations.append({"classification":"RECOMMENDATION",
                                     "work_id":item["id"], "recommendation":guidance[item["status"]],
                                     "confidence":1.0, "currentness":generated})
+        for incident in incidents:
+            recommendations.append({
+                "classification":"RECOMMENDATION",
+                "incident_id":incident["incident_id"],
+                "recommendation":"Review incident evidence and resolve only after recovery",
+                "confidence":1.0,
+                "currentness":generated,
+            })
         previous_attention=len(prior.get("attention_items", [])) if prior else 0
+        previous_incidents=len(prior.get("active_incidents", [])) if prior else 0
         previous_decisions=len(prior.get("recent_decisions", [])) if prior else 0
         changes={"has_prior_report":bool(prior),
                  "attention_item_delta":len(attention)-previous_attention,
+                 "active_incident_delta":len(incidents)-previous_incidents,
                  "decision_count_delta":len(decisions[-10:])-previous_decisions}
         payload = {
             "kind": "SEAN_OS_OPERATIONAL_REPORT", "cadence": cadence,
             "report_type":"MORNING_BRIEF" if cadence == "DAILY" else "WEEKLY_REVIEW",
             "period_key": key, "scope": scope, "generated_at": generated,
-            "headline": "ATTENTION REQUIRED" if attention else "SYSTEM NOMINAL",
+            "headline": "ATTENTION REQUIRED" if attention or incidents else "SYSTEM NOMINAL",
             "health": health, "attention_items": attention,
+            "active_incidents":incidents,
             "active_approvals": approvals, "recent_decisions": decisions[-10:],
             "top_priorities":active_projects, "portfolio_by_lifecycle":lifecycle,
             "spend":health["budgets"], "changes_since_prior":changes,
@@ -98,12 +111,15 @@ class ReportingService:
                  "value":health, "confidence":1.0, "currentness":generated},
                 {"classification":"FACT", "statement":"Blocked or failed work count",
                  "value":len(attention), "confidence":1.0, "currentness":generated},
+                {"classification":"FACT", "statement":"Active monitoring incident count",
+                 "value":len(incidents), "confidence":1.0, "currentness":generated},
             ],
             "estimates":[],
             "inferences":[{"classification":"INFERENCE",
-                           "statement":"Operator attention is required" if attention else "No known runtime exception requires attention",
+                           "statement":"Operator attention is required" if attention or incidents else "No known runtime exception requires attention",
                            "confidence":.95, "currentness":generated,
-                           "evidence_work_ids":[item["id"] for item in attention]}],
+                           "evidence_work_ids":[item["id"] for item in attention],
+                           "evidence_incident_ids":[item["incident_id"] for item in incidents]}],
             "recommendations":recommendations,
             "unavailable_sources":[name for name in ("EMAIL","CALENDAR")
                                    if not any(c["connector_name"] == name and c["enabled"] for c in connectors)],

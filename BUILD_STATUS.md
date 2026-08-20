@@ -5,22 +5,22 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 17:19 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 17:23 EDT
-- Milestone selected: durable incident resolution and reopen lifecycle
+- Last continuous-goal checkpoint started: 2026-08-20 17:24 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 17:28 EDT
+- Milestone selected: scope-safe incident reporting
 - Run state: Completed; scheduled builder paused and continuous goal active
-- Last meaningful milestone: schema-v9 alert incident resolution and reopen lifecycle verified
+- Last meaningful milestone: active incidents integrated into scope-safe operational reports
 - Deployed commit: `1aa8762`
 - Runtime: Online, private, one replica, persistent volume attached
-- Concrete changes: added durable incidents keyed by scope/route/class, Sean-only
-  resolution, recurring-condition reopen behavior, active-incident queries, tests, and docs
-- Verification: 98 tests passed; schema-v9 release, recovery, and synthetic kill-switch drills passed
+- Concrete changes: added scope-filtered runtime health, severity-ranked active incidents,
+  incident deltas/facts/recommendations, resolved exclusion, cross-scope tests, and docs
+- Verification: 100 tests passed; schema-v9 release, recovery, and synthetic kill-switch drills passed
 - Real data connected: No
 - Live integrations enabled: No
 - Current blocker: executing the production drill or delivering an alert requires
   Sean's separate exact approval; neither is needed for continued local development
-- Next milestone: include active monitoring incidents in daily/weekly operational reports
-  without adding notification or delivery authority
+- Next milestone: expose scoped incident query and Sean-only resolution through the
+  primary named-command interface
 - Sean action required: No
 
 ## Recent verified milestones
@@ -48,6 +48,8 @@ Every automation run updates it, even when no notification is sent.
     startup on partial, malformed, unsafe, or unbounded values; Railway is unchanged.
 14. Schema v9 groups observations into durable scoped incidents, supports Sean-only
     resolution, and reopens recurring conditions without losing historical evidence.
+15. Daily and weekly reports now rank active incidents, show incident deltas, exclude
+    resolved incidents, and prevent health/queue/budget leakage across scopes.
 
 ## Update contract
 
