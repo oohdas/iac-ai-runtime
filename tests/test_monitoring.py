@@ -1,7 +1,10 @@
 import unittest
+import tempfile
+from pathlib import Path
 
 from sean_os import (
-    EscalationRoute, acknowledge_alert_plan, classify_alerts,
+    Actor, AuthorizationError, EscalationRoute, SeanOSStore, ValidationError,
+    acknowledge_alert_plan, classify_alerts,
     deduplicate_alert_plans, plan_alert_deliveries,
 )
 
@@ -123,6 +126,51 @@ class MonitoringTests(unittest.TestCase):
             acknowledge_alert_plan(
                 plan, acknowledged_by="synthetic-operator", acknowledged_at="2030-01-01T12:00:00"
             )
+
+    def test_alert_observation_is_durable_deduplicated_and_scoped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SeanOSStore(Path(directory) / "alerts.db")
+            try:
+                iac = Actor("monitor", frozenset({"IAC"}))
+                personal = Actor("personal-monitor", frozenset({"PERSONAL"}))
+                route = EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias")
+                plan = plan_alert_deliveries(
+                    [{"code": "DEAD_LETTER", "severity": "CRITICAL", "summary": "one"}],
+                    route=route,
+                    owner_scope="IAC",
+                )[0]
+                store.record_alert_observation(iac, plan)
+                observed = store.record_alert_observation(iac, plan)
+                self.assertEqual(observed["occurrence_count"], 2)
+                with self.assertRaises(AuthorizationError):
+                    store.get_alert_observation(personal, plan["plan_id"])
+            finally:
+                store.close()
+
+    def test_alert_acknowledgement_is_single_and_sean_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SeanOSStore(Path(directory) / "alerts.db")
+            try:
+                iac = Actor("monitor", frozenset({"IAC"}))
+                route = EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias")
+                plan = plan_alert_deliveries(
+                    [{"code": "STALE_WORKER", "severity": "CRITICAL", "summary": "stale"}],
+                    route=route,
+                    owner_scope="IAC",
+                )[0]
+                store.record_alert_observation(iac, plan)
+                receipt = acknowledge_alert_plan(
+                    plan, acknowledged_by="sean", acknowledged_at="2030-01-01T12:00:00+00:00"
+                )
+                with self.assertRaises(AuthorizationError):
+                    store.acknowledge_alert_observation(iac, receipt)
+                acknowledged = store.acknowledge_alert_observation(Actor.sean(), receipt)
+                self.assertEqual(acknowledged["acknowledgement_payload"], receipt)
+                changed = dict(receipt); changed["acknowledged_at"] = "2030-01-01T12:01:00+00:00"
+                with self.assertRaisesRegex(ValidationError, "already acknowledged"):
+                    store.acknowledge_alert_observation(Actor.sean(), changed)
+            finally:
+                store.close()
 
 
 if __name__ == "__main__":

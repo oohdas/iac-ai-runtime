@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 
-LATEST_SCHEMA_VERSION = 7
+LATEST_SCHEMA_VERSION = 8
 
 
 def _stamp() -> str:
@@ -104,6 +104,9 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
         )
         connection.commit()
         _record(connection, 7)
+    if 8 not in versions:
+        # v8 scoped alert observations are additive and created by schema.sql.
+        _record(connection, 8)
     version=connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
     if version != LATEST_SCHEMA_VERSION:
         raise sqlite3.DatabaseError(

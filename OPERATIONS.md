@@ -70,6 +70,9 @@ Expected evidence:
 - identical alert plans receive deterministic IDs, repeats can be suppressed across
   runs, and acknowledgements produce hashed, timezone-aware local evidence while
   keeping `delivery_authorized=false`.
+- schema v8 durably stores PERSONAL or IAC alert observations, counts identical
+  occurrences, scope-filters reads, and permits one immutable Sean-only local
+  acknowledgement; these records do not add a delivery capability.
 
 ## Continuous verification
 

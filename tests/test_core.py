@@ -223,7 +223,7 @@ class SeanOSCoreTests(unittest.TestCase):
         backup=Path(self.temp.name) / "verified-backup.db"
         manifest=self.store.backup_manifest(self.sean, backup)
         self.assertTrue(manifest["integrity_ok"])
-        self.assertEqual(manifest["schema_version"], 7)
+        self.assertEqual(manifest["schema_version"], 8)
         restored_path=Path(self.temp.name) / "restored.db"
         self.store.restore_backup(self.sean, backup, restored_path)
         restored=SeanOSStore(restored_path)
@@ -268,7 +268,7 @@ class SeanOSCoreTests(unittest.TestCase):
         connection.commit(); connection.close()
         migrated=SeanOSStore(legacy_path)
         try:
-            self.assertEqual(migrated.schema_version, 7)
+            self.assertEqual(migrated.schema_version, 8)
             self.assertEqual(
                 migrated.connection.execute("SELECT status FROM work_queue WHERE id=?", (work_id,)).fetchone()[0],
                 "QUEUED",

@@ -594,6 +594,83 @@ class SeanOSStore:
                 "needs_attention": needs_attention,
                 "active_worker_count": len(active_workers)}
 
+    def record_alert_observation(self, actor: Actor, plan: dict[str, Any]) -> dict[str, Any]:
+        """Persist or count a scope-authorized, non-delivering alert plan."""
+        scope=plan.get("owner_scope"); plan_id=plan.get("plan_id")
+        if scope not in {"PERSONAL", "IAC"}:
+            raise ValidationError("Alert observation requires PERSONAL or IAC scope")
+        self._authorize(actor, scope, (), "write")
+        if not isinstance(plan_id, str) or len(plan_id) != 64:
+            raise ValidationError("Alert observation requires deterministic plan_id")
+        if plan.get("delivery_authorized") is not False:
+            raise ValidationError("Only non-delivering alert plans may be recorded")
+        findings=secret_findings(plan)
+        if findings:
+            raise ValidationError("Secret-like material is prohibited in alert evidence")
+        payload=json.dumps(plan, sort_keys=True, separators=(",", ":"))
+        existing=self.connection.execute(
+            "SELECT plan_payload FROM alert_observations WHERE plan_id=?", (plan_id,)
+        ).fetchone()
+        if existing and existing["plan_payload"] != payload:
+            raise ValidationError("Alert plan_id collision or payload mutation")
+        stamp=now()
+        self.connection.execute(
+            """INSERT INTO alert_observations
+               (plan_id, owner_scope, route_id, plan_payload, first_seen_at, last_seen_at)
+               VALUES(?, ?, ?, ?, ?, ?)
+               ON CONFLICT(plan_id) DO UPDATE SET
+               last_seen_at=excluded.last_seen_at,
+               occurrence_count=alert_observations.occurrence_count+1""",
+            (plan_id, scope, plan.get("action_target"), payload, stamp, stamp),
+        )
+        self.connection.commit()
+        self._audit(actor, "RECORD_ALERT_OBSERVATION", "ALLOWED",
+                    "Scoped non-delivering alert evidence recorded", plan_id,
+                    {"scope":scope, "route_id":plan.get("action_target")})
+        return self.get_alert_observation(actor, plan_id)
+
+    def get_alert_observation(self, actor: Actor, plan_id: str) -> dict[str, Any]:
+        row=self.connection.execute(
+            "SELECT * FROM alert_observations WHERE plan_id=?", (plan_id,)
+        ).fetchone()
+        if row is None:
+            raise ValidationError("Alert observation not found")
+        self._authorize(actor, row["owner_scope"], (), "read")
+        result=dict(row); result["plan_payload"]=json.loads(result["plan_payload"])
+        if result["acknowledgement_payload"]:
+            result["acknowledgement_payload"]=json.loads(result["acknowledgement_payload"])
+        return result
+
+    def acknowledge_alert_observation(
+        self, actor: Actor, receipt: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Attach one immutable acknowledgement receipt; delivery remains unauthorized."""
+        if not actor.is_sean:
+            raise AuthorizationError("Only Sean may acknowledge an escalation in v0.1")
+        plan_id=receipt.get("plan_id")
+        row=self.connection.execute(
+            "SELECT * FROM alert_observations WHERE plan_id=?", (plan_id,)
+        ).fetchone()
+        if row is None:
+            raise ValidationError("Alert observation not found")
+        if receipt.get("owner_scope") != row["owner_scope"]:
+            raise ValidationError("Acknowledgement scope mismatch")
+        if receipt.get("delivery_authorized") is not False:
+            raise ValidationError("Acknowledgement cannot authorize delivery")
+        payload=json.dumps(receipt, sort_keys=True, separators=(",", ":"))
+        if row["acknowledgement_payload"] and row["acknowledgement_payload"] != payload:
+            raise ValidationError("Alert observation is already acknowledged")
+        self.connection.execute(
+            """UPDATE alert_observations SET acknowledgement_payload=?,
+               acknowledged_at=?, acknowledged_by=? WHERE plan_id=?""",
+            (payload, receipt.get("acknowledged_at"), receipt.get("acknowledged_by"), plan_id),
+        )
+        self.connection.commit()
+        self._audit(actor, "ACKNOWLEDGE_ALERT", "ALLOWED",
+                    "Immutable local acknowledgement attached", plan_id,
+                    {"scope":row["owner_scope"], "delivery_authorized":False})
+        return self.get_alert_observation(actor, plan_id)
+
     def _reserve_cost(self, work: sqlite3.Row) -> bool:
         payload=json.loads(work["payload"]); units=float(payload.get("estimated_cost_units", 0))
         if units <= 0: return True

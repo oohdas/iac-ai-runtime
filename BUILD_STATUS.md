@@ -5,22 +5,22 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last automation run started: 2026-08-20 16:50 EDT
-- Last automation run completed: 2026-08-20 16:52 EDT
-- Milestone selected: local escalation acknowledgement and deduplication evidence
+- Last automation run started: 2026-08-20 16:56 EDT
+- Last automation run completed: 2026-08-20 16:58 EDT
+- Milestone selected: durable scoped escalation observations and acknowledgements
 - Run state: Completed
-- Last meaningful milestone: deterministic escalation deduplication and acknowledgement evidence verified
+- Last meaningful milestone: durable scoped escalation evidence verified in schema v8
 - Deployed commit: `1aa8762`
 - Runtime: Online, private, one replica, persistent volume attached
-- Concrete changes: added deterministic alert-plan IDs, repeat suppression across runs,
-  timezone-aware hashed acknowledgement receipts, tests, and drill/runbook evidence
-- Verification: 78 tests passed; release, recovery, and synthetic kill-switch drills passed
+- Concrete changes: added schema-v8 alert observations, durable occurrence counting,
+  ownership-scoped reads, immutable Sean-only acknowledgements, audit events, and tests
+- Verification: 80 tests passed; schema-v8 release, recovery, and synthetic kill-switch drills passed
 - Real data connected: No
 - Live integrations enabled: No
 - Current blocker: executing the production drill or delivering an alert requires
   Sean's separate exact approval; neither is needed for continued local development
-- Next milestone: add durable scoped storage for alert observations and acknowledgement
-  receipts without enabling external delivery
+- Next milestone: connect the local monitoring snapshot to durable alert observations
+  behind an explicit non-delivering CLI option
 - Sean action required: No
 
 ## Recent verified milestones
@@ -36,6 +36,8 @@ Every automation run updates it, even when no notification is sent.
    produces approval-gated plans only; the production drill has explicit pass/abort criteria.
 8. Alert plans now deduplicate deterministically and generate hashed, timezone-aware
    acknowledgement evidence without authorizing delivery.
+9. Schema v8 durably stores scoped alert observations, counts repeats, and permits
+   one immutable Sean-only acknowledgement while preserving audit evidence.
 
 ## Update contract
 

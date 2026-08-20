@@ -233,6 +233,22 @@ CREATE TABLE IF NOT EXISTS command_requests (
     submitted_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS alert_observations (
+    plan_id TEXT PRIMARY KEY,
+    owner_scope TEXT NOT NULL CHECK (owner_scope IN ('PERSONAL','IAC')),
+    route_id TEXT NOT NULL,
+    plan_payload TEXT NOT NULL,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    occurrence_count INTEGER NOT NULL DEFAULT 1 CHECK (occurrence_count >= 1),
+    acknowledgement_payload TEXT,
+    acknowledged_at TEXT,
+    acknowledged_by TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_alert_observations_scope_seen
+ON alert_observations(owner_scope, last_seen_at);
+
 CREATE TRIGGER IF NOT EXISTS audit_log_no_update
 BEFORE UPDATE ON audit_log
 BEGIN
