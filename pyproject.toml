@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sean-os-core"
+name = "iac-ai-runtime"
 version = "0.1.0"
-description = "Policy-controlled local core for Sean OS v0.1"
+description = "Policy-controlled IAC AI runtime for Sean OS v0.1"
 requires-python = ">=3.12"
 dependencies = []
 

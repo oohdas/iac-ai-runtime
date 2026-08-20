@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/sean-os-iac-bridge-v1.schema.json",
+  "title": "Sean OS to IAC AI bridge command",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "request_id", "issued_at", "target", "command_type", "payload", "personal_data_included", "payload_sha256"],
+  "properties": {
+    "contract_version": {"const": "sean-os-iac-bridge/v1"},
+    "request_id": {"type": "string", "minLength": 1},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "target": {"const": "IAC"},
+    "command_type": {"type": "string"},
+    "payload": {"type": "object"},
+    "personal_data_included": {"const": false},
+    "payload_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}

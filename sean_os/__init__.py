@@ -8,6 +8,7 @@ from .scheduler import LocalScheduler
 from .revenue_agent import RevenueAgent, RevenueCharter
 from .integrations import ClaudeImportAdapter, ConnectorGate, ImportEnvelope
 from .commands import CommandGateway
+from .bridge import IACBridgeReceiver, BridgeDenied
 
 __all__ = [
     "Actor", "SeanOSStore", "AuthorizationError", "ValidationError",
@@ -17,5 +18,5 @@ __all__ = [
     "LocalScheduler",
     "RevenueAgent", "RevenueCharter",
     "ClaudeImportAdapter", "ConnectorGate", "ImportEnvelope",
-    "CommandGateway",
+    "CommandGateway", "IACBridgeReceiver", "BridgeDenied",
 ]

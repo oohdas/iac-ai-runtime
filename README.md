@@ -1,6 +1,6 @@
-# Sean OS v0.1 Core
+# IAC AI Runtime v0.1
 
-Local Milestone 13 prototype for the policy-controlled Sean OS runtime.
+IAC-owned company automation runtime implementing the IAC side of Sean OS v0.1.
 
 This build intentionally uses Python's standard library and SQLite so it can be tested without accounts, paid services, production credentials, or real PERSONAL/IAC data.
 
