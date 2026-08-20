@@ -20,6 +20,8 @@ Current Railway evidence and unresolved controls are recorded in
 - [x] Exactly one SQLite worker replica is configured. Scaling requires migration to a managed database.
 - [x] Optional monitoring can run inside the existing worker and is disabled by
   default, so it does not require another SQLite-connected service or replica.
+- [x] Container monitoring configuration is all-or-none and fails startup on
+  partial, malformed, unsafe, or unbounded values; Railway remains unconfigured.
 - [x] Worker starts through a privilege-dropping entrypoint and becomes Online within 90 seconds.
 - [x] Restart policy is On Failure with a maximum of 10 retries.
 - [ ] Kill-switch activation and worker termination are tested in production without live external actions.

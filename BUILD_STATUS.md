@@ -5,22 +5,22 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 17:10 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 17:14 EDT
-- Milestone selected: single-worker integrated monitoring
+- Last continuous-goal checkpoint started: 2026-08-20 17:15 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 17:18 EDT
+- Milestone selected: fail-closed monitoring environment contract
 - Run state: Completed; scheduled builder paused and continuous goal active
-- Last meaningful milestone: integrated single-worker monitoring verified and disabled by default
+- Last meaningful milestone: container monitoring configuration verified fail-closed and default-off
 - Deployed commit: `1aa8762`
 - Runtime: Online, private, one replica, persistent volume attached
-- Concrete changes: moved capture into runtime code, added monotonic cadence gating,
-  complete-contract startup validation, default-off single-worker integration, CLI tests, and docs
-- Verification: 90 tests passed; schema-v8 release, recovery, and synthetic kill-switch drills passed
+- Concrete changes: added pure environment translation, all-or-none route validation,
+  bounded numeric cadence checks, control-character rejection, entrypoint wiring, tests, and docs
+- Verification: 95 tests passed; schema-v8 release, recovery, and synthetic kill-switch drills passed
 - Real data connected: No
 - Live integrations enabled: No
 - Current blocker: executing the production drill or delivering an alert requires
   Sean's separate exact approval; neither is needed for continued local development
-- Next milestone: add fail-closed environment configuration for integrated monitoring
-  without changing the currently deployed Railway settings
+- Next milestone: add durable alert resolution and reopen semantics so monitoring
+  distinguishes active incidents from historical observations
 - Sean action required: No
 
 ## Recent verified milestones
@@ -44,6 +44,8 @@ Every automation run updates it, even when no notification is sent.
     on signals, fails visibly, and remains an optional non-deployed local process.
 12. The existing worker can now run monitoring at monotonic cadence inside its one
     process; default startup remains unchanged and complete-contract tests prove no delivery.
+13. The container accepts a default-off monitoring environment contract that aborts
+    startup on partial, malformed, unsafe, or unbounded values; Railway is unchanged.
 
 ## Update contract
 

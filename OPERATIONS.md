@@ -145,6 +145,19 @@ python3 scripts/worker.py --database iac-ai.db \
 Partial configuration fails startup. The integrated monitor writes only local
 scope-safe evidence and exposes no delivery adapter.
 
+The container entrypoint accepts the same configuration through non-secret
+environment variables, all unset by default:
+
+- `SEAN_OS_MONITOR_ROUTE_ID`
+- `SEAN_OS_MONITOR_DESTINATION_KIND` (`EMAIL` or `WEBHOOK`)
+- `SEAN_OS_MONITOR_DESTINATION_REF` (an alias, never a credential or real address)
+- `SEAN_OS_MONITOR_INTERVAL_SECONDS` (optional; defaults to 30, minimum 1)
+
+The first three variables are all-or-none. An interval without a route, partial
+route, unsupported kind, non-finite interval, or control character aborts startup.
+No monitoring variable is currently configured in Railway, and this document
+does not authorize adding one.
+
 ## Stop all new execution
 
 Use `SeanOSStore.set_kill_switch(Actor.sean(), True)`. Existing infrastructure should also stop the supervised worker process. The kill switch does not delete queued work or history.

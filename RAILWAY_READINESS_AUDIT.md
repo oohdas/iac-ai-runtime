@@ -28,6 +28,9 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
   Railway remounted the same persistent volume before container startup.
 - The Railway GitHub App is restricted to `oohdas/iac-ai-runtime`; production
   tracks `main` and automatic deployments on approved pushes are enabled.
+- The local container entrypoint now has a default-off, all-or-none environment
+  contract for integrated non-delivering monitoring. No monitoring route variable
+  has been added to Railway, and no alert destination or delivery is authorized.
 
 ## Required pre-deployment controls
 
