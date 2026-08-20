@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 
-LATEST_SCHEMA_VERSION = 11
+LATEST_SCHEMA_VERSION = 12
 
 
 def _stamp() -> str:
@@ -137,6 +137,9 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
         )
         connection.commit()
         _record(connection, 11)
+    if 12 not in versions:
+        # v12 synthetic coding-delivery ledger is additive and created by schema.sql.
+        _record(connection, 12)
     version=connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
     if version != LATEST_SCHEMA_VERSION:
         raise sqlite3.DatabaseError(

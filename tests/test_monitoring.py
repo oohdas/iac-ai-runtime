@@ -760,7 +760,7 @@ class MonitoringTests(unittest.TestCase):
                 restored=migrated.get_alert_delivery(
                     Actor("auditor", frozenset({"IAC"})), delivery["delivery_id"]
                 )
-                self.assertEqual(migrated.schema_version, 11)
+                self.assertEqual(migrated.schema_version, 12)
                 self.assertEqual(restored["status"], "STAGED")
                 self.assertEqual(restored["max_attempts"], 3)
                 self.assertEqual(restored["available_at"], restored["created_at"])

@@ -2,7 +2,10 @@
 
 ## Current state
 
-The continuous runtime is implemented and verified locally. It is not yet a 24/7 production service. No real data, model API, external connector, account, or paid service is connected.
+The continuous runtime is implemented and verified locally. An isolated private
+Railway worker pilot runs continuously with an empty/synthetic IAC database; it is
+not approved for broader production use. No real data, model API, live connector,
+customer action, or paid model service is connected.
 
 ## Safety invariants
 
@@ -39,7 +42,8 @@ The continuous runtime is implemented and verified locally. It is not yet a 24/7
 31. Interface audit queries are scope-filtered; IAC principals cannot retrieve PERSONAL traces.
 32. Portfolio capacity changes may pause agent-created work only; human projects receive recommendations.
 33. Rejected revenue hypotheses are retained with reopen triggers and no external action authority.
-34. The local Git repository has no remote; destination and ownership require explicit approval.
+34. The source remote is the IAC-owned private `oohdas/iac-ai-runtime` repository;
+    `main` auto-deploys the Railway pilot, so every push requires explicit approval.
 35. A database binds permanently to DEVELOPMENT, IAC, or PERSONAL; reopening under another profile fails closed.
 36. IAC worker/interface processes explicitly require the IAC profile, even for Sean-level actors.
 37. The monitoring loop persists evidence only, enforces matching route/database
@@ -70,6 +74,9 @@ The continuous runtime is implemented and verified locally. It is not yet a 24/7
 47. Only Sean may reset `FAILED` delivery to `STAGED`; reset clears the consumed
     approval and attempt state, performs no execution, and requires a fresh exact
     approval before the worker can claim it again.
+48. Synthetic coding-delivery evidence requires a review branch, an IAC-linked
+    project and task, repository-relative changed paths, tests, activity units, and
+    a positive reserved cost; it never invokes Claude, GitHub, or a network client.
 
 ## Local verification
 
@@ -114,7 +121,7 @@ Expected evidence:
 - all tests pass;
 - database integrity is `ok`;
 - foreign-key violations are empty;
-- no real data or production deployment is reported.
+- no real data or newly authorized production change is reported.
 - the isolated kill-switch drill blocks work, records audit evidence, and recovers.
 - monitoring classifies stale-worker, policy, dead-letter, budget, approval,
   integrity, kill-switch, no-worker, and backup failures without delivering alerts.
@@ -124,7 +131,7 @@ Expected evidence:
 - identical alert plans receive deterministic IDs, repeats can be suppressed across
   runs, and acknowledgements produce hashed, timezone-aware local evidence while
   keeping `delivery_authorized=false`.
-- schema v11 durably stores PERSONAL or IAC alert observations, counts identical
+- schema v12 durably stores PERSONAL or IAC alert observations, counts identical
   occurrences, scope-filters reads, and permits one immutable Sean-only local
   acknowledgement; it also maintains resolvable/reopenable incidents without adding
   a delivery capability.
@@ -139,7 +146,7 @@ Expected evidence:
 - the in-memory HTTP contract test proves the ordinary interface credential receives
   `403` at the operator decision route, while the operator credential can decide and
   separately authorize the exact staged delivery; no socket or external service is used.
-- a schema-v10 fixture migrates to v11 without losing its staged delivery; the new
+- a schema-v10 fixture migrates through v12 without losing its staged delivery; the new
   lease, retry, and availability fields are initialized deterministically.
 - an isolated worker-process test consumes an exactly approved outbox item only when
   `--synthetic-delivery` is explicit and records a receipt proving both
@@ -147,6 +154,9 @@ Expected evidence:
 - operational reports and the primary interface expose delivery attention without
   destination secrets; the ordinary credential cannot reset failed work, while a
   separately authenticated reset remains staged and unclaimable until fresh approval.
+- a synthetic Claude Code completion is accepted only through the connector gate,
+  linked to its canonical IAC project/task, and durably records review, changed-path,
+  test, activity, and cost evidence without mutating a repository or using a network.
 
 ## Continuous verification
 
@@ -259,6 +269,11 @@ Use `SeanOSStore.set_kill_switch(Actor.sean(), True)`. Existing infrastructure s
 The bounded production recovery procedure and pass/fail evidence are specified
 in `PRODUCTION_DRILL_PLAN.md`. That plan does not itself authorize execution.
 
-## Next implementation gap
+## Next production gate
 
-Chief of Staff and Revenue portfolio semantics now pass locally, and the source has a reviewable local Git history with no remote. The remaining acceptance gates are production-owned: correct repository destination, live Claude/Claude Code delivery workflow, separated cloud environments, identity/secrets, persistent storage, encryption, alerts, and deployment. These require Sean's explicit production choices and approval.
+All v0.1 behavior that can be proven safely with synthetic data is implemented
+locally. The source is owned by IAC and the private Railway pilot has persistent
+storage. Remaining proof is production-owned: verified encrypted backup/restore,
+least-privilege identities and secrets, the controlled kill-switch drill, alert
+routing, live Claude/Claude Code execution, and later connectors. Each requires an
+exact approval and must preserve the IAC/PERSONAL ownership boundary.

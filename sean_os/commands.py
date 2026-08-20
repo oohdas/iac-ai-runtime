@@ -6,6 +6,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from .security import secret_findings
 from .store import Actor, AuthorizationError, SeanOSStore, ValidationError, now
 
 
@@ -55,6 +56,12 @@ COMMANDS={
         frozenset({"external_id","content","source_uri","captured_at","synthetic"}),
         frozenset({"metadata"}),
     ),
+    "REGISTER_CODING_DELIVERY":CommandSpec(
+        "REGISTER_CODING_DELIVERY",
+        frozenset({"external_id","project_id","task_id","repository","base_revision",
+                   "branch_name","review_ref","summary","changed_paths","test_results",
+                   "activity_units","estimated_cost_units","synthetic"}),
+    ),
     "GENERATE_REPORT":CommandSpec(
         "GENERATE_OPERATIONAL_REPORT", frozenset({"cadence"}), frozenset({"period_key"}),
     ),
@@ -89,6 +96,12 @@ class CommandGateway:
             raise ValidationError(
                 f"Command fields invalid; missing={sorted(missing)}, extra={sorted(extras)}"
             )
+        findings=secret_findings(payload)
+        if findings:
+            raise ValidationError(
+                "Secret-like material is prohibited in durable command payloads: "
+                + ", ".join(item["path"] for item in findings)
+            )
         canonical=json.dumps(
             {"command_type":command, "scope":scope, "payload":payload},
             sort_keys=True, separators=(",",":"),
@@ -102,6 +115,24 @@ class CommandGateway:
             if existing["request_sha256"] != digest:
                 raise ValidationError("Request ID was reused with different command content")
             return {"work_id":existing["work_id"], "deduplicated":True, "status":self.status(existing["work_id"])}
+        if command == "REGISTER_CODING_DELIVERY":
+            delivery_request=self.store.connection.execute(
+                """SELECT d.request_sha256, d.work_id, c.submitted_by
+                   FROM coding_delivery_requests d
+                   JOIN command_requests c ON c.work_id=d.work_id
+                   WHERE d.external_id=?""",
+                (payload["external_id"],),
+            ).fetchone()
+            if delivery_request:
+                if delivery_request["submitted_by"] != self.actor.id:
+                    raise AuthorizationError("Coding delivery is not visible to this principal")
+                if delivery_request["request_sha256"] != digest:
+                    raise ValidationError(
+                        "Coding delivery ID was reused with different request content"
+                    )
+                work_id=delivery_request["work_id"]
+                return {"work_id":work_id, "deduplicated":True,
+                        "status":self.status(work_id)}
 
         request_id=str(uuid.uuid4()); work_id=str(uuid.uuid4()); stamp=now()
         try:
@@ -122,6 +153,13 @@ class CommandGateway:
                 (request_id, external_request_id, digest, self.actor.id, scope,
                  command, work_id, stamp),
             )
+            if command == "REGISTER_CODING_DELIVERY":
+                self.store.connection.execute(
+                    """INSERT INTO coding_delivery_requests
+                       (external_id, request_sha256, work_id, created_at)
+                       VALUES (?, ?, ?, ?)""",
+                    (payload["external_id"], digest, work_id, stamp),
+                )
             self.store.connection.commit()
         except Exception:
             self.store.connection.rollback(); raise

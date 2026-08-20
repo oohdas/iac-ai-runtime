@@ -174,8 +174,9 @@ def chief_of_staff_registry(store: SeanOSStore, actor: Actor) -> ActionRegistry:
     reporter = ReportingService(store, actor)
     from .revenue_agent import RevenueAgent
     revenue = RevenueAgent(store, actor)
-    from .integrations import ClaudeImportAdapter, ImportEnvelope
+    from .integrations import CodingDeliveryAdapter, ClaudeImportAdapter, ImportEnvelope
     claude_import = ClaudeImportAdapter(store, actor)
+    coding_delivery = CodingDeliveryAdapter(store, actor)
 
     def evaluate_idea(payload):
         idea=store.get_record(actor, payload["idea_id"])
@@ -370,6 +371,13 @@ def chief_of_staff_registry(store: SeanOSStore, actor: Actor) -> ActionRegistry:
             source_uri=payload["source_uri"], captured_at=payload["captured_at"],
             synthetic=bool(payload["synthetic"]), metadata=payload.get("metadata", {}),
         )),
+    )
+    registry.register(
+        ActionPolicy(
+            "REGISTER_CODING_DELIVERY", frozenset({"IAC"}), external_effect=False,
+            reversible=True, approval_required=False, cost_bearing=True,
+        ),
+        coding_delivery.record,
     )
     registry.register(
         ActionPolicy(

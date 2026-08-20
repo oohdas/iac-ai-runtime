@@ -222,6 +222,33 @@ CREATE TABLE IF NOT EXISTS imported_artifacts (
     PRIMARY KEY(connector_name, external_id)
 );
 
+CREATE TABLE IF NOT EXISTS coding_deliveries (
+    delivery_id TEXT PRIMARY KEY,
+    external_id TEXT NOT NULL UNIQUE,
+    content_sha256 TEXT NOT NULL,
+    project_id TEXT NOT NULL REFERENCES records(id),
+    task_id TEXT NOT NULL REFERENCES records(id),
+    repository TEXT NOT NULL,
+    base_revision TEXT NOT NULL,
+    branch_name TEXT NOT NULL,
+    review_ref TEXT NOT NULL,
+    artifact_record_id TEXT NOT NULL REFERENCES records(id),
+    status TEXT NOT NULL CHECK (status IN ('DELIVERED')),
+    activity_units INTEGER NOT NULL CHECK (activity_units > 0),
+    cost_units REAL NOT NULL CHECK (cost_units > 0),
+    delivered_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_coding_deliveries_project_task
+ON coding_deliveries(project_id, task_id, delivered_at);
+
+CREATE TABLE IF NOT EXISTS coding_delivery_requests (
+    external_id TEXT PRIMARY KEY,
+    request_sha256 TEXT NOT NULL,
+    work_id TEXT NOT NULL UNIQUE REFERENCES work_queue(id),
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS command_requests (
     id TEXT PRIMARY KEY,
     external_request_id TEXT NOT NULL UNIQUE,

@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -14,8 +16,10 @@ ROOT = Path(__file__).resolve().parents[1]
 BRIDGE_SCHEMA_SHA256 = "70f271353b4e6696ada8816f6bad821cfabaec4e87aa96edaae97a14ac7f41d8"
 
 
-def run(label: str, command: list[str]) -> dict[str, object]:
-    completed = subprocess.run(command, cwd=ROOT, check=False)
+def run(
+    label: str, command: list[str], *, environment: dict[str, str] | None = None,
+) -> dict[str, object]:
+    completed = subprocess.run(command, cwd=ROOT, check=False, env=environment)
     if completed.returncode:
         raise SystemExit(f"{label} failed with exit code {completed.returncode}")
     return {"check": label, "passed": True}
@@ -56,9 +60,21 @@ def main() -> int:
     if "docker push" in workflow or "railway up" in workflow:
         raise SystemExit("verification workflow must not publish or deploy")
     checks.append({"check": "workflow_permissions_and_no_deploy", "passed": True})
-    checks.append(run("compile", [sys.executable, "-m", "compileall", "-q", "sean_os", "tests"]))
-    checks.append(run("tests", [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"]))
-    checks.append(run("recovery_drill", [sys.executable, "scripts/recovery_drill.py"]))
+    with tempfile.TemporaryDirectory(prefix="sean-os-release-") as cache_dir:
+        environment=dict(os.environ)
+        environment["PYTHONPYCACHEPREFIX"]=str(Path(cache_dir) / "pycache")
+        checks.append(run(
+            "compile", [sys.executable, "-m", "compileall", "-q", "sean_os", "tests"],
+            environment=environment,
+        ))
+        checks.append(run(
+            "tests", [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
+            environment=environment,
+        ))
+        checks.append(run(
+            "recovery_drill", [sys.executable, "scripts/recovery_drill.py"],
+            environment=environment,
+        ))
     print(json.dumps({"passed": True, "checks": checks}, indent=2, sort_keys=True))
     return 0
 

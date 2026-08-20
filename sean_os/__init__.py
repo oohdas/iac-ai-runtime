@@ -6,7 +6,7 @@ from .chief_of_staff import ChiefOfStaff, PlanningLimits, chief_of_staff_registr
 from .reporting import ReportingService
 from .scheduler import LocalScheduler
 from .revenue_agent import RevenueAgent, RevenueCharter
-from .integrations import ClaudeImportAdapter, ConnectorGate, ImportEnvelope
+from .integrations import CodingDeliveryAdapter, ClaudeImportAdapter, ConnectorGate, ImportEnvelope
 from .commands import CommandGateway
 from .bridge import IACBridgeReceiver, BridgeDenied
 from .monitoring import (
@@ -22,7 +22,7 @@ __all__ = [
     "ReportingService",
     "LocalScheduler",
     "RevenueAgent", "RevenueCharter",
-    "ClaudeImportAdapter", "ConnectorGate", "ImportEnvelope",
+    "CodingDeliveryAdapter", "ClaudeImportAdapter", "ConnectorGate", "ImportEnvelope",
     "CommandGateway", "IACBridgeReceiver", "BridgeDenied", "EscalationRoute",
     "RuntimeMonitor", "acknowledge_alert_plan", "capture_monitor_snapshot",
     "classify_alerts", "deduplicate_alert_plans",

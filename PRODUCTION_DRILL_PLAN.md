@@ -39,6 +39,7 @@ until the rollback owner reviews the evidence.
 ## Separate future approval
 
 Actual alert delivery requires a reviewed adapter plus an exact, expiring,
-single-use approval for action type `DELIVER_ALERT` and the selected route ID.
-Enabling a route does not authorize other messaging, connectors, or customer
-contact.
+single-use approval for action type `DELIVER_ALERT`, the selected `delivery_id`,
+the matching owner scope, and the already reviewed immutable payload hash. A route
+ID or route configuration alone is not an execution target and never authorizes
+delivery, other messaging, connectors, or customer contact.

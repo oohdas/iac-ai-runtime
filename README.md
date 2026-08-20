@@ -40,6 +40,9 @@ This build intentionally uses Python's standard library and SQLite so it can be 
 - Disabled-by-default Claude/Claude Code import with synthetic-only activation
 - Immutable external IDs, SHA-256 content provenance, and duplicate suppression for imports
 - Imported text is explicitly stored as untrusted evidence with instruction execution disabled
+- Synthetic Claude Code deliveries are linked to an IAC project and task with an
+  immutable repository/review reference, changed-path and test evidence, activity,
+  budgeted cost trace, and a durable `DELIVERED` status; no Git host is called
 - Locked, visible gates for email, calendar, ShopVox, QuickBooks Online, QNAP, and RBC read-only
 - Idempotent, scope-isolated command gateway for the future ChatGPT primary interface
 - Whitelisted asynchronous commands with strict field schemas and no arbitrary action passthrough
@@ -51,7 +54,7 @@ This build intentionally uses Python's standard library and SQLite so it can be 
 - Recursive secret-pattern rejection on record create/update and fail-closed sale-export scanning
 - Scoped ChatGPT-interface create, retrieve, list, update, and link operations across IAC core records
 - Scope-filtered audit retrieval that prevents PERSONAL audit disclosure to the IAC interface
-- Schema-v11 durable alert-delivery outbox keyed by incident generation, with exact
+- Schema-v12 durable alert-delivery outbox keyed by incident generation, with exact
   scope-matched approval and a deterministic no-network synthetic adapter
 - Primary-interface outbox review and restart-safe stage/request/decide/authorize
   flow with ordinary IAC and Sean-operator credentials kept separate
@@ -63,7 +66,8 @@ This build intentionally uses Python's standard library and SQLite so it can be 
 - Revenue comparison across outbound, existing/inactive customers, quotes, inbound, and new channels
 - Capacity-adjusted expected return using margin, probability, cost, Sean time, strategic fit, and evidence
 - Retained rejected revenue hypotheses with explicit reopen triggers
-- Local Git repository and review artifact; no remote or external push is configured
+- IAC-owned private Git repository and review artifact; the deployed Railway pilot
+  tracks `main`, while every new push remains an explicit production approval
 - Permanently bound DEVELOPMENT, IAC, or PERSONAL database profiles; profile mismatch fails closed
 - IAC worker and interface always open the database in IAC-only mode
 - Per-scope monthly budgets with cost reservation, settlement, usage events, and fail-closed blocking
@@ -94,4 +98,12 @@ See [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) for the explicit producti
 See [INTEGRATION_ROADMAP.md](INTEGRATION_ROADMAP.md) for connector ordering and activation boundaries.
 See [INTERFACE_CONTRACT.md](INTERFACE_CONTRACT.md) for the ChatGPT authority boundary.
 
-The SQLite files created by the scripts are local and disposable. The worker is packaged for a supervised cloud process, but it has not been deployed. Production requires a persistent volume or managed database, alerts, backups, and Sean's approval of the IAC Railway service and budget. Authentication, live model workers, real integrations, and real alert delivery remain approval-gated. The outbox adapter only produces synthetic receipts and has no network implementation. The Revenue Agent handles synthetic inputs only and has no outreach, CRM, pricing, quoting, or spending authority. Unknown actions never execute; approval-blocked work waits for an explicit, exact authorization rather than retrying.
+The local SQLite files created by the scripts are disposable. An isolated, private,
+one-replica Railway worker pilot exists with a persistent `/data` volume, but it has
+no real data or live integrations and broader production use is not approved.
+Authentication, live model workers, real integrations, production alert delivery,
+and every new deployment remain approval-gated. The outbox adapter only produces
+synthetic receipts and has no network implementation. The Revenue Agent handles
+synthetic inputs only and has no outreach, CRM, pricing, quoting, or spending
+authority. Unknown actions never execute; approval-blocked work waits for an
+explicit, exact authorization rather than retrying.

@@ -2,6 +2,10 @@
 
 No deployment is authorized by this document. Every item must have evidence before production is enabled.
 
+The existing isolated pilot is authorized and deployed at baseline `1aa8762`.
+Unchecked items apply to the next release or broader production activation; a push
+to `main` is a deployment and still requires explicit approval.
+
 Current Railway evidence and unresolved controls are recorded in
 `RAILWAY_READINESS_AUDIT.md`.
 
@@ -46,9 +50,10 @@ Current Railway evidence and unresolved controls are recorded in
 - [ ] Operational report cadence and Sean escalation route are approved.
 - [ ] Rollback owner, process, and recovery-time target are documented.
 
-## Sean approval required
+## Further Sean approval required
 
-- [ ] Hosting/database/monitoring choices and monthly maximum spend.
-- [ ] Production deployment and persistent-volume creation.
+- [x] Isolated IAC Railway pilot, one persistent volume, and $10/$15 spend controls.
+- [ ] Push and automatic deployment of the reviewed schema-v12 release candidate.
+- [ ] Production backup destination, encryption ownership, retention, and restore drill.
 - [ ] Any connection to Claude, email, calendar, ShopVox, QuickBooks Online, QNAP, RBC, or customers.
 - [ ] Any handler capable of sending messages, changing external records, deploying code, or moving money.

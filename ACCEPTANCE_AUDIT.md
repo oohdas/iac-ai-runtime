@@ -1,6 +1,6 @@
 # Sean OS v0.1 — Acceptance Audit
 
-Audit date: 2026-08-19. Source: approved Master Specification §14. “Partial” is not treated as accepted.
+Audit date: 2026-08-20. Source: approved Master Specification §14. “Partial” is not treated as accepted.
 
 | # | Acceptance criterion | Status | Current evidence | Remaining proof/work |
 |---:|---|---|---|---|
@@ -13,12 +13,26 @@ Audit date: 2026-08-19. Source: approved Master Specification §14. “Partial�
 | 7 | AI project self-pause/kill and visibility | Proven locally | Ownership checks, evidence decisions, agent-only pause/kill, human-review recommendations, audit trace, report-visible lifecycle and decision | Production verification only |
 | 8 | Risky actions blocked pending approval | Proven locally | Registered policies, exact expiring approval, budgets, prohibited action tests, kill switch | Reverify per live connector before activation |
 | 9 | Immutable material-action trace | Proven locally | Append-only audit, allow/deny/fail, policy result, evidence IDs, tool/model fields, costs, outcomes, rollback status, execution receipts, scoped trace query | Production tool/model identifiers require live worker configuration |
-| 10 | Claude/Claude Code repository delivery | Partial | Local Git repository, deterministic tests/migrations, review artifact, synthetic import provenance; no remote | Correct owner/repository destination and live issue/branch/review workflow require Sean approval |
+| 10 | Claude/Claude Code repository delivery | Proven locally | IAC-owned private repository; synthetic-only, no-network coding delivery through durable queue; exact project/task links; immutable branch/review/path/test evidence; durable status; activity and budgeted cost trace; duplicate suppression | Live Claude/model and Git-host mutation require separate identity, budget, and approval |
 | 11 | ChatGPT canonical query/commands and model portability | Proven locally | Authenticated scoped CRUD/link/query/audit gateway; active-incident query; separate Sean-operator incident resolution; restart-safe delivery stage/request/decide/authorize flow; in-memory HTTP contract proof; asynchronous commands; canonical DB independent of model; arbitrary actions blocked | Approved production identity and ChatGPT connection |
-| 12 | Cloud deployment security/recovery/monitoring | Partial | Container, Railway manifest, permanent IAC/PERSONAL database profile binding, health gate, migrations, backup/restore drill, deterministic alert classification, durable scoped incident lifecycle, default-off single-worker monitor, exact approval-gated delivery outbox, default-off leased/retrying no-network synthetic processor, scope-safe delivery diagnostics, fresh-approval recovery reset, v10→v11 preservation test, production drill plan | Live alert adapter, encrypted production backup/restore evidence, least privilege, and drill execution require Sean approval |
+| 12 | Cloud deployment security/recovery/monitoring | Partial | Private IAC Railway pilot, one replica, persistent volume, no public domain, container, permanent IAC/PERSONAL profile binding, health gate, v12 migrations, local backup/restore and kill-switch drills, deterministic incidents, default-off monitor, exact approval-gated outbox, leased no-network synthetic processor, diagnostics and fresh-approval reset | Encrypted production backup/restore evidence, least-privilege runtime identities/secrets, and controlled production drill require Sean approval |
 | 13 | Scheduled reports with semantic distinctions | Proven locally | Idempotent daily/weekly scheduling; facts/estimates/inferences/recommendations; confidence/currentness; priorities, approvals, exceptions, scope-filtered health and active incidents, spend, lifecycle, portfolio decisions, changes, unavailable-source disclosure | Live deadline/calendar content remains connector-gated |
 | 14 | Full end-to-end scenario | Proven locally | Automated scenario: capture idea → evaluate → create project → import reversible research → request customer-contact approval → Sean denies → report records outcome | Production verification only |
 
 ## Current conclusion
 
-All acceptance criteria that can be proven without production ownership, accounts, identity, or live integrations now pass locally. Criteria 10 and 12 remain partial because repository destination and cloud deployment require Sean's explicit production choices and approval. The goal remains active pending that production gate.
+All fourteen criteria now have complete local synthetic proof except the production-
+environment portions of criterion 12. Repository ownership and the isolated Railway
+pilot are established. The remaining acceptance gate is operational evidence from an
+approved encrypted backup/restore, least-privilege identity review, and controlled
+production drill; live integrations remain later, separately approved activations.
+
+## Canonical reproduction
+
+Run `python3 scripts/verify_release.py`. The 2026-08-20 release candidate passes
+compilation, 119 automated tests, bridge-integrity and container/workflow safety
+checks, plus a manifested schema-v12 backup/restore drill. Direct regression anchors
+include `test_primary_interface_can_create_query_update_and_link_core_records`,
+`test_full_idea_to_approval_decision_to_report_scenario`,
+`test_synthetic_coding_delivery_links_project_task_review_cost_and_activity`, and
+`test_deployed_schema_v7_migrates_to_v12_without_losing_state`.

@@ -5,24 +5,29 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 17:35 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 17:37 EDT
-- Milestone selected: delivery diagnostics and non-executing recovery controls
-- Run state: Completed; scheduled builder paused and continuous goal active
-- Last meaningful milestone: scope-safe delivery diagnostics and fresh-approval recovery
+- Last continuous-goal checkpoint started: 2026-08-20 17:38 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 17:51 EDT
+- Milestone selected: requirement-by-requirement completion audit and deployment package
+- Run state: Completed locally; waiting only at the explicit production gate
+- Last meaningful milestone: all v0.1 behavior now has local synthetic proof; the
+  remaining acceptance evidence is production-owned criterion 12
 - Deployed commit: `1aa8762`
 - Runtime: Online, private, one replica, persistent volume attached
-- Concrete changes: added derived backlog/lease/retry diagnostics, report attention,
-  ordinary-interface read access, Sean-operator failed-item reset, expired-lease audit,
-  scope isolation, and mandatory fresh approval after recovery
-- Verification: 116 tests passed; schema-v11 release and recovery gates passed
+- Concrete changes: reconciled specification/repository/Railway evidence; added a
+  synthetic-only coding-delivery ledger linked to project/task and repository review;
+  enforced intake secret scanning and delivery-level idempotency; added crash repair,
+  budget/activity trace, deployed v7→v12 migration proof, portable release caching,
+  and an exact backup/deploy/rollback package
+- Verification: canonical gate passed compilation, 119 tests, bridge and container/
+  workflow safety checks, plus manifested schema-v12 backup/restore recovery
 - Real data connected: No
 - Live integrations enabled: No
-- Current blocker: executing the production drill or delivering an alert requires
-  Sean's separate exact approval; neither is needed for continued local development
-- Next milestone: run a requirement-by-requirement local completion audit and produce
-  the exact production-change set and approvals needed for the next deployment
-- Sean action required: No
+- Current blocker: the next safe step changes the persistent Railway database from
+  deployed schema v7 to v12 and therefore requires Sean's exact backup/deploy approval
+- Next milestone: create/verify the encrypted pre-release backup, push the reviewed
+  range after `1aa8762`, observe the existing automatic deployment, and verify health
+- Sean action required: Yes — approve the exact controlled package in
+  `PRODUCTION_DECISION.md`; no push, environment change, or deployment has occurred
 
 ## Recent verified milestones
 
@@ -61,6 +66,9 @@ Every automation run updates it, even when no notification is sent.
     bounded crash recovery/retries, kill-switch enforcement, and terminal health alerts.
 20. Reports and the primary interface now expose scope-safe delivery diagnostics;
     Sean-only reset revokes prior authorization and leaves work staged for fresh approval.
+21. The full v0.1 acceptance audit is reconciled to the real IAC GitHub/Railway state;
+    synthetic coding delivery and the deployed v7→v12 migration are now directly tested,
+    and the release/rollback package is ready for an explicit production decision.
 
 ## Update contract
 

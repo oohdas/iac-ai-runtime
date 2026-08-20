@@ -21,8 +21,8 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
 - Persistent volume `iac-ai-runtime-volume` is attached at `/data` and the
   service variable is `SEAN_OS_DATABASE=/data/iac-ai.db`.
 - No public domain is configured; Railway reports the service as unexposed.
-- Commit `59c89a4` deployed successfully on 2026-08-20 and Railway reported the
-  service Online. The worker successfully opened the volume-backed database
+- Deployment baseline `1aa8762` is the current tracked `origin/main` and was
+  recorded Online. The worker successfully opened the volume-backed database
   after its entrypoint prepared `/data` and dropped to uid/gid 10001.
 - A controlled restart on 2026-08-20 returned the same deployment Online and
   Railway remounted the same persistent volume before container startup.
@@ -31,6 +31,8 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
 - The local container entrypoint now has a default-off, all-or-none environment
   contract for integrated non-delivering monitoring. No monitoring route variable
   has been added to Railway, and no alert destination or delivery is authorized.
+- The reviewed local branch is ahead of deployed `origin/main`; no later commit is
+  authorized for push until the encrypted backup and schema-v12 release package is approved.
 
 ## Required pre-deployment controls
 

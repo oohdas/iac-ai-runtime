@@ -10,7 +10,7 @@ from pathlib import Path
 from sean_os import (
     ActionPolicy, ActionRegistry, Actor, AuthorizationError, PolicyDenied,
     ChiefOfStaff, PlanningLimits, SeanOSStore, ValidationError,
-    ClaudeImportAdapter, CommandGateway, ConnectorGate, ImportEnvelope, LocalScheduler,
+    CodingDeliveryAdapter, ClaudeImportAdapter, CommandGateway, ConnectorGate, ImportEnvelope, LocalScheduler,
     ReportingService, RevenueAgent, RevenueCharter,
     chief_of_staff_registry, default_registry,
 )
@@ -241,7 +241,7 @@ class SeanOSCoreTests(unittest.TestCase):
         backup=Path(self.temp.name) / "verified-backup.db"
         manifest=self.store.backup_manifest(self.sean, backup)
         self.assertTrue(manifest["integrity_ok"])
-        self.assertEqual(manifest["schema_version"], 11)
+        self.assertEqual(manifest["schema_version"], 12)
         restored_path=Path(self.temp.name) / "restored.db"
         self.store.restore_backup(self.sean, backup, restored_path)
         restored=SeanOSStore(restored_path)
@@ -286,7 +286,7 @@ class SeanOSCoreTests(unittest.TestCase):
         connection.commit(); connection.close()
         migrated=SeanOSStore(legacy_path)
         try:
-            self.assertEqual(migrated.schema_version, 11)
+            self.assertEqual(migrated.schema_version, 12)
             self.assertEqual(
                 migrated.connection.execute("SELECT status FROM work_queue WHERE id=?", (work_id,)).fetchone()[0],
                 "QUEUED",
@@ -305,6 +305,52 @@ class SeanOSCoreTests(unittest.TestCase):
                     "SELECT name FROM sqlite_master WHERE type='table' AND name='alert_delivery_outbox'"
                 ).fetchone()
             )
+            self.assertIsNotNone(
+                migrated.connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='coding_deliveries'"
+                ).fetchone()
+            )
+        finally:
+            migrated.close()
+
+    def test_deployed_schema_v7_migrates_to_v12_without_losing_state(self):
+        deployed_path=Path(self.temp.name) / "deployed-v7.db"
+        deployed=SeanOSStore(deployed_path)
+        record_id=deployed.create_record(
+            self.sean, "GOAL", "IAC", {"name":"Deployed migration sentinel"}
+        )
+        work_id=deployed.enqueue_work(self.sean, "NOOP", "IAC", {"sentinel":True})
+        deployed.close()
+        connection=sqlite3.connect(deployed_path)
+        connection.execute("PRAGMA foreign_keys=OFF")
+        connection.execute("DELETE FROM schema_migrations WHERE version >= 8")
+        for table in (
+            "coding_delivery_requests", "coding_deliveries", "alert_delivery_outbox",
+            "alert_incidents", "alert_observations",
+        ):
+            connection.execute(f"DROP TABLE {table}")
+        connection.commit(); connection.close()
+
+        migrated=SeanOSStore(deployed_path)
+        try:
+            self.assertEqual(migrated.schema_version, 12)
+            self.assertEqual(
+                migrated.get_record(self.sean, record_id)["payload"]["name"],
+                "Deployed migration sentinel",
+            )
+            self.assertEqual(
+                migrated.connection.execute(
+                    "SELECT status FROM work_queue WHERE id=?", (work_id,)
+                ).fetchone()[0],
+                "QUEUED",
+            )
+            expected={"alert_observations", "alert_incidents", "alert_delivery_outbox",
+                      "coding_deliveries", "coding_delivery_requests"}
+            actual={row[0] for row in migrated.connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )}
+            self.assertTrue(expected.issubset(actual))
+            self.assertTrue(migrated.integrity_check()["ok"])
         finally:
             migrated.close()
 
@@ -872,6 +918,94 @@ class SeanOSCoreTests(unittest.TestCase):
         self.store.complete_work(self.iac_agent, work_id, "worker-1", result)
         self.assertFalse(result["deduplicated"])
 
+    def test_synthetic_coding_delivery_links_project_task_review_cost_and_activity(self):
+        ConnectorGate(self.store).configure(
+            self.sean, "CLAUDE_IMPORT", enabled=True, mode="SYNTHETIC_ONLY"
+        )
+        goal_id=self.store.create_record(
+            self.iac_agent, "GOAL", "IAC", {"name":"Transferable automation"}
+        )
+        plan=ChiefOfStaff(self.store, self.iac_agent).create_project(
+            goal_id, "Repository workflow",
+            [{"name":"Implement bounded handler", "done_when":"review evidence passes"}],
+            success_metric="verified review artifact", stop_condition="policy fails",
+        )
+        self.store.configure_budget(self.sean, "IAC", 10)
+        payload={
+            "external_id":"synthetic-coding-delivery-1",
+            "project_id":plan["project_id"], "task_id":plan["task_ids"][0],
+            "repository":"oohdas/iac-ai-runtime", "base_revision":"abc1234",
+            "branch_name":"synthetic/bounded-handler", "review_ref":"synthetic://review/1",
+            "summary":"Recorded a bounded synthetic coding delivery",
+            "changed_paths":["sean_os/example.py", "tests/test_example.py"],
+            "test_results":["2 synthetic tests passed"], "activity_units":7,
+            "estimated_cost_units":2.5, "synthetic":True,
+        }
+        gateway=CommandGateway(self.store, Actor("chatgpt-interface", frozenset({"IAC"})))
+        queued=gateway.submit("coding-delivery-request-1", "REGISTER_CODING_DELIVERY", payload)
+        work=self.store.claim_work(self.iac_agent, "worker-1")
+        self.assertEqual(work["id"], queued["work_id"])
+        result=chief_of_staff_registry(self.store, self.iac_agent).execute(
+            self.store, self.iac_agent, work
+        )
+        self.store.complete_work(self.iac_agent, work["id"], "worker-1", result)
+
+        row=self.store.connection.execute(
+            "SELECT * FROM coding_deliveries WHERE delivery_id=?", (result["delivery_id"],)
+        ).fetchone()
+        self.assertEqual((row["project_id"], row["task_id"], row["status"]),
+                         (plan["project_id"], plan["task_ids"][0], "DELIVERED"))
+        self.assertEqual((row["activity_units"], row["cost_units"]), (7, 2.5))
+        artifact=self.store.get_record(self.iac_agent, result["record_id"])
+        self.assertEqual(artifact["payload"]["review_ref"], "synthetic://review/1")
+        self.assertFalse(artifact["payload"]["network_used"])
+        links={(item["relationship_type"], item["to_record_id"]) for item in
+               self.store.connection.execute(
+                   "SELECT relationship_type, to_record_id FROM relationships WHERE from_record_id=?",
+                   (result["record_id"],),
+               )}
+        self.assertEqual(links, {("DELIVERS", plan["task_ids"][0]),
+                                 ("EVIDENCE_FOR", plan["project_id"])})
+        self.assertEqual(self.store.budget_status("IAC")["used_units"], 2.5)
+        self.assertTrue(any(
+            event["details"].get("activity_units") == 7 and
+            event["details"].get("cost_units") == 2.5
+            for event in self.store.audit_events()
+        ))
+        queued_again=gateway.submit(
+            "coding-delivery-request-2", "REGISTER_CODING_DELIVERY", payload
+        )
+        self.assertTrue(queued_again["deduplicated"])
+        self.assertEqual(queued_again["work_id"], queued["work_id"])
+        self.assertEqual(self.store.budget_status("IAC")["used_units"], 2.5)
+        with self.assertRaises(ValidationError):
+            gateway.submit(
+                "coding-delivery-request-3", "REGISTER_CODING_DELIVERY",
+                dict(payload, summary="Changed evidence under an immutable ID"),
+            )
+        replay=CodingDeliveryAdapter(self.store, self.iac_agent).record(payload)
+        self.assertTrue(replay["deduplicated"])
+        self.store.connection.execute(
+            "DELETE FROM coding_deliveries WHERE delivery_id=?", (result["delivery_id"],)
+        )
+        self.store.connection.execute(
+            "DELETE FROM relationships WHERE from_record_id=?", (result["record_id"],)
+        )
+        self.store.connection.commit()
+        recovered=CodingDeliveryAdapter(self.store, self.iac_agent).record(payload)
+        self.assertTrue(recovered["deduplicated"])
+        self.assertEqual(recovered["record_id"], result["record_id"])
+        self.assertEqual(
+            self.store.connection.execute(
+                "SELECT COUNT(*) FROM relationships WHERE from_record_id=?",
+                (result["record_id"],),
+            ).fetchone()[0],
+            2,
+        )
+        changed=dict(payload, summary="Changed evidence under an immutable ID")
+        with self.assertRaises(ValidationError):
+            CodingDeliveryAdapter(self.store, self.iac_agent).record(changed)
+
     def test_command_gateway_whitelists_and_deduplicates_requests(self):
         interface=Actor("chatgpt-interface", frozenset({"IAC"}))
         gateway=CommandGateway(self.store, interface)
@@ -913,6 +1047,19 @@ class SeanOSCoreTests(unittest.TestCase):
         gateway.submit("same", "CREATE_IAC_GOAL", {"name":"A", "success_metric":"x"})
         with self.assertRaises(ValidationError):
             gateway.submit("same", "CREATE_IAC_GOAL", {"name":"B", "success_metric":"x"})
+
+    def test_command_gateway_rejects_secrets_before_durable_queueing(self):
+        gateway=CommandGateway(
+            self.store, Actor("chatgpt-interface", frozenset({"IAC"}))
+        )
+        before=self.store.connection.execute("SELECT COUNT(*) FROM work_queue").fetchone()[0]
+        with self.assertRaises(ValidationError):
+            gateway.submit(
+                "secret-command", "CREATE_RECORD",
+                {"entity_type":"KNOWLEDGE", "payload":{"api_key":"sk-synthetic-secret"}},
+            )
+        after=self.store.connection.execute("SELECT COUNT(*) FROM work_queue").fetchone()[0]
+        self.assertEqual(after, before)
 
     def test_command_gateway_runs_asynchronously_and_returns_scoped_result(self):
         interface=Actor("chatgpt-interface", frozenset({"IAC"}))

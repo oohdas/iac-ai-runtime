@@ -1,35 +1,52 @@
-# Sean OS v0.1 — First Production Decision
+# Sean OS v0.1 — Next Production Decision
 
 ## Current status
 
-The ownership split is approved and implemented. The Sean-owned personal control
-plane is published to the private `seansadhoo/sean-os-personal` repository. This
-IAC runtime remains local-only, has no remote, and is ready for an IAC-owned
-private repository.
+- IAC source is in the private `oohdas/iac-ai-runtime` repository.
+- A private, unexposed Railway worker pilot runs one replica with a persistent
+  volume at `/data` and tracks repository branch `main`.
+- Railway automatic deployment means a push to `main` is also a production change.
+- Deployed source baseline is `1aa8762`; the reviewed local branch contains the
+  later security, monitoring, delivery-recovery, and schema-v12 work. That baseline
+  supports schema v7, so the controlled release performs the tested v7→v12 upgrade.
+- The pilot contains no approved real data or live connector.
 
-## Decision required next
+## Exact decision required next
 
-Create or select the IAC-owned private repository `iac-ai-runtime`. This action
-does not authorize Railway deployment, production secrets, spending, live data,
-or external connectors.
+Approve one controlled release package covering:
 
-## Recommended ownership split
+1. create and verify an encrypted backup of the current Railway database without
+   inspecting record contents;
+2. push the clean, release-gated local `main` range after `1aa8762` to
+   `oohdas/iac-ai-runtime/main`, allowing Railway's existing automatic deployment;
+3. leave all monitoring, synthetic-delivery, interface, operator, and connector
+   environment variables unchanged and disabled;
+4. verify one replica, private exposure, `/data` volume attachment, schema v12,
+   IAC scope profile, database integrity, worker uid 10001, and healthy startup;
+5. stop and restore the pre-release backup if migration or health verification fails.
 
-1. **Sean-owned private repository** — personal Sean OS orchestration, PERSONAL configuration, and cross-domain control plane.
-2. **IAC-owned private repository** — IAC worker, Revenue Agent, company integrations, and Railway deployment configuration.
-3. **Versioned boundary** — the repositories exchange explicit commands/contracts; neither database contains the other's private records.
+This decision does not authorize live Claude, alerts, external messages, real data,
+new credentials, a public domain, new services, additional replicas, or higher spend.
 
-This preserves portability for a future IAC sale while keeping Sean's personal
-control plane outside the sale boundary.
+## Ownership boundary
 
-## Alternatives
+1. `seansadhoo/sean-os-personal` remains Sean-owned and outside an IAC sale.
+2. `oohdas/iac-ai-runtime`, its IAC deployment, and IAC records remain IAC-owned.
+3. Cross-domain direction uses only the versioned allowlisted bridge; neither
+   runtime receives the other domain's private database or secrets.
 
-- **Local-only for now:** preserve the current local Git repository and defer production. No continuous cloud runtime.
-- **IAC-only pilot:** split and place only the IAC runtime in IAC GitHub/Railway. Personal Sean OS remains local and inactive. This advances IAC automation but is not the complete Sean OS production architecture.
+## Rollback constraint
 
-## Explicitly not authorized yet
+Schema v12 is forward-only for this release. Rolling source back to `1aa8762`
+without restoring the matching pre-release database is prohibited because the older
+v7 runtime rejects newer schema versions. Recovery therefore means: kill switch or stop
+worker, restore the verified pre-release backup to an isolated/new target, verify its
+manifest and integrity, then reattach only through the approved Railway procedure.
 
-- Adding an IAC Git remote or pushing this source
-- Creating a Railway service or volume
-- Configuring production secrets, identity, monitoring, or spend
-- Connecting live Claude, email, calendar, ShopVox, QBO, QNAP, RBC, or customer data
+## Still separately approval-gated
+
+- live model/API usage or Claude/Claude Code repository mutation;
+- production monitoring routes or alert delivery;
+- interface/operator credentials or any public service;
+- email, calendar, ShopVox, QuickBooks Online, QNAP, RBC, or customer data;
+- customer contact, external-record mutation, deployment handlers, or money movement.

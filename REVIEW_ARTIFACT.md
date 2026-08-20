@@ -1,32 +1,44 @@
-# Sean OS v0.1 — Local Review Artifact
+# Sean OS v0.1 — Release Review Artifact
 
-This change set is local-only. It has not been pushed, deployed, connected to real data, or assigned to a production owner.
+## Release scope
 
-## Scope
+The IAC-owned local `main` branch is a release candidate against deployed baseline
+`1aa8762`. It adds only internal, reversible, synthetic-safe runtime capabilities:
 
-- Canonical scoped database and deterministic migrations
-- Durable queues, leases, retries, budgets, receipts, scheduling, and workers
-- Approval policies, kill switch, immutable audit, secret scanning, and sale export
-- Chief of Staff and Revenue Agent synthetic internal loops
-- Scheduled reports, recovery drills, locked connectors, and ChatGPT command boundary
+- secure incident and alert-delivery operations with distinct operator authority;
+- durable approval-gated outbox, leases, bounded retries, diagnostics, and recovery;
+- synthetic-only Claude Code delivery evidence linked to canonical project/task,
+  repository review, changed paths, tests, activity, and budgeted cost;
+- tested deployed-baseline schema v7→v12 migration, updated operational evidence,
+  and no live adapter.
 
-## Required verification
+## Canonical verification
 
 ```bash
-python3 -m unittest discover -s tests -v
-python3 scripts/recovery_drill.py
-python3 scripts/status.py
-python3 -m compileall -q sean_os scripts
+python3 scripts/verify_release.py
 ```
 
-## Review boundaries
+The gate compiles source/tests, runs the full suite, performs recovery and kill-switch
+drills, checks container safety, verifies the ownership bridge, and rejects any CI
+publish/deploy step. The working tree must be clean and the exact local head hash must
+be recorded immediately before approval and push.
 
-- No live connector is enabled.
-- No external or irreversible action handler is registered.
-- No production deployment is authorized.
-- No GitHub remote is configured.
-- Repository ownership and destination must be decided before any push.
+## Proven boundaries
 
-## Rollback
+- Remote: private IAC repository `oohdas/iac-ai-runtime`.
+- Deployment: private one-replica Railway pilot; `main` auto-deploys.
+- Data: synthetic/empty only; no PERSONAL or live IAC data is authorized.
+- Connectors: all live connectors disabled.
+- Delivery: no email/webhook/network implementation; synthetic receipts only and
+  default off.
+- Interface: no production service or token is configured by this release.
+- Infrastructure: no public domain, new service, new replica, new variable, or spend
+  change is included.
 
-The local source tree may be copied or archived. Database upgrades require a verified backup; restore refuses overwrite and validates integrity. Production rollback is not yet applicable because no production environment exists.
+## Deployment and rollback gate
+
+No push is authorized by this artifact. A verified encrypted pre-release backup is
+mandatory because schema v12 cannot be opened by the older deployed code. On failure,
+stop execution and restore the matching backup; do not point `1aa8762` at a v12
+database. See `PRODUCTION_DECISION.md` and `PRODUCTION_DRILL_PLAN.md` for the exact
+approval and recovery boundaries.

@@ -1,40 +1,39 @@
-# IAC AI Runtime — Repository Handoff
+# IAC AI Runtime — Release Handoff
 
-## Exact destination
+## Verified destination
 
-- Owner: IAC company account or organization
-- Repository name: `iac-ai-runtime`
+- Owner/repository: `oohdas/iac-ai-runtime`
 - Visibility: private
-- Initialization: empty; do not add a README, `.gitignore`, license, or template
-- Default branch after push: `main`
+- Deployment branch: `main`
+- Railway behavior: existing automatic deployment on an approved `main` push
+- Deployed baseline: `1aa8762`
+- Local release candidate: clean local `main`; record `git rev-parse HEAD` at approval
 
-## Verified source
+## Release evidence
 
-- Local release commit: `fb62e79`
-- Canonical release command: `python3 scripts/verify_release.py`
-- Runtime tests: 68 passing
-- Recovery drill: passing
-- Bridge contract hash:
-  `70f271353b4e6696ada8816f6bad821cfabaec4e87aa96edaae97a14ac7f41d8`
-- Working tree: must be clean before push
+- Canonical gate: `python3 scripts/verify_release.py`
+- Runtime tests: 119 passing in the canonical release gate
+- Schema: restart-safe additive migration from deployed v7 to release v12
+- Recovery and kill-switch drills: included in the canonical gate
+- GitHub workflow: read-only verification plus container build; no deploy step
+- Bridge contract: unchanged and verified by its committed schema hash
 
-## Automatic checks after publication
+## Controlled handoff sequence
 
-Every push and pull request will run the read-only `Verify IAC Runtime` workflow.
-It compiles the code, runs all tests, performs a recovery drill, verifies the
-ownership bridge and container safety invariants, and builds—but does not
-publish—the container.
+1. Confirm the local tree is clean and record the exact head and commit list after
+   `1aa8762`.
+2. Obtain Sean's explicit approval for the backup-and-deploy package.
+3. Create and verify the encrypted pre-release database backup.
+4. Push the reviewed local `main` to the existing IAC remote once.
+5. Observe Railway automatic deployment and run the checks in
+   `PRODUCTION_DECISION.md` without enabling any optional variable or connector.
+6. Preserve the deployment, backup, and verification evidence without record content
+   or secrets.
 
-## Authority boundary
+## Not authorized by handoff
 
-Creating the repository and pushing this commit authorizes source publication
-only. It does not authorize:
-
-- Railway service or volume creation;
-- deployment or public network exposure;
-- production credentials or secrets;
-- paid model/API usage;
-- live Claude, email, calendar, ShopVox, QBO, QNAP, or RBC connections;
+- bypassing the release gate or deploying a different commit;
+- live Claude/model use, model spending, or GitHub mutation by an agent;
+- public exposure, new services/replicas, or environment changes;
+- real data, production alerts, email/calendar, ShopVox, QBO, QNAP, or RBC;
 - customer contact, external record mutation, deployment handlers, or money movement.
-
-Each production capability remains separately approval-gated.
