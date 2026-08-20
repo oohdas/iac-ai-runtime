@@ -5,29 +5,28 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 17:38 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 17:51 EDT
-- Milestone selected: requirement-by-requirement completion audit and deployment package
-- Run state: Completed locally; waiting only at the explicit production gate
-- Last meaningful milestone: all v0.1 behavior now has local synthetic proof; the
-  remaining acceptance evidence is production-owned criterion 12
+- Last continuous-goal checkpoint started: 2026-08-20 17:52 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 18:08 EDT
+- Milestone selected: fail-closed no-upgrade schema-v12 production release
+- Run state: Completed locally; revised exact production approval is required
+- Last meaningful milestone: schema migration now has verified backup, automatic
+  rollback, and a database-closed recovery hold without requiring Railway Pro
 - Deployed commit: `1aa8762`
 - Runtime: Online, private, one replica, persistent volume attached
-- Concrete changes: reconciled specification/repository/Railway evidence; added a
-  synthetic-only coding-delivery ledger linked to project/task and repository review;
-  enforced intake secret scanning and delivery-level idempotency; added crash repair,
-  budget/activity trace, deployed v7→v12 migration proof, portable release caching,
-  and an exact backup/deploy/rollback package
-- Verification: canonical gate passed compilation, 119 tests, bridge and container/
-  workflow safety checks, plus manifested schema-v12 backup/restore recovery
+- Concrete changes: safely aborted the unavailable native-backup path and restored
+  baseline `1aa8762`; added a mode-0600 SHA-256 pre-migration backup and manifest,
+  automatic restoration on migration failure, explicit approval-gated restore, a
+  database-closed recovery hold, release-gate invariants, tests, and revised runbooks
+- Verification: canonical gate passed compilation, 125 tests, bridge, container,
+  migration-guard, recovery-hold, workflow, and manifested restore checks
 - Real data connected: No
 - Live integrations enabled: No
-- Current blocker: the next safe step changes the persistent Railway database from
-  deployed schema v7 to v12 and therefore requires Sean's exact backup/deploy approval
-- Next milestone: stop the worker, create/lock the native Railway volume backup,
-  push the reviewed range after `1aa8762`, observe automatic deployment, and verify health
-- Sean action required: Yes — approve the exact controlled package in
-  `PRODUCTION_DECISION.md`; no push, environment change, or deployment has occurred
+- Current blocker: the approved native Railway backup is Pro-only on Hobby; the
+  safer no-upgrade mechanism changes the exact release package and requires renewed approval
+- Next milestone: push the exact guarded head, observe automatic deployment, verify
+  pre-migration evidence/schema v12/health, and invoke recovery only on a failed gate
+- Sean action required: Yes — approve the revised no-upgrade package in
+  `PRODUCTION_DECISION.md`; no new source has been pushed or deployed
 
 ## Recent verified milestones
 
@@ -69,6 +68,9 @@ Every automation run updates it, even when no notification is sent.
 21. The full v0.1 acceptance audit is reconciled to the real IAC GitHub/Railway state;
     synthetic coding delivery and the deployed v7→v12 migration are now directly tested,
     and the release/rollback package is ready for an explicit production decision.
+22. The failed native-backup attempt was aborted without a source change, baseline
+    was restored, and the release now fails closed around migration using a verified
+    same-volume backup, automatic restore, and recovery hold; all 125 tests pass.
 
 ## Update contract
 

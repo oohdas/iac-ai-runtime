@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import os
 import math
+import json
 from pathlib import Path
 import sys
 from typing import Mapping
+
+from sean_os.migration_guard import guarded_migrate, restore_pre_migration_backup
 
 
 WORKER_UID = 10001
@@ -55,6 +58,15 @@ def worker_arguments(environment: Mapping[str, str]) -> list[str]:
     return arguments
 
 
+def requested_restore_version(environment: Mapping[str, str]) -> int | None:
+    value=environment.get("SEAN_OS_RESTORE_SCHEMA_VERSION")
+    if value is None or value == "":
+        return None
+    if value.strip() != value or not value.isdigit() or int(value) <= 0:
+        raise ValueError("SEAN_OS_RESTORE_SCHEMA_VERSION must be a positive integer")
+    return int(value)
+
+
 def main() -> None:
     database = Path(os.environ.get("SEAN_OS_DATABASE", "/data/sean-os.db"))
     arguments = worker_arguments(os.environ)
@@ -63,6 +75,16 @@ def main() -> None:
     os.setgroups([])
     os.setgid(WORKER_GID)
     os.setuid(WORKER_UID)
+    recovery_version=requested_restore_version(os.environ)
+    if recovery_version is not None:
+        evidence=restore_pre_migration_backup(database, recovery_version)
+        print(json.dumps({"migration_recovery":evidence}, sort_keys=True), flush=True)
+        os.execv(
+            sys.executable,
+            [sys.executable, "scripts/recovery_hold.py"],
+        )
+    evidence=guarded_migrate(database, scope_profile="IAC")
+    print(json.dumps({"migration_guard":evidence}, sort_keys=True), flush=True)
     os.execv(
         sys.executable,
         [sys.executable, *arguments],

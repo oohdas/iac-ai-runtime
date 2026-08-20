@@ -54,6 +54,21 @@ def main() -> int:
     if any(invariant not in entrypoint for invariant in required_privilege_drop):
         raise SystemExit("container entrypoint must prepare /data and drop privileges before worker startup")
     checks.append({"check": "container_safety_invariants", "passed": True})
+    migration_guard = (ROOT / "sean_os" / "migration_guard.py").read_text(encoding="utf-8")
+    required_migration_invariants = (
+        "ensure_pre_migration_backup",
+        "restore_pre_migration_backup",
+        "worker start denied",
+        "SAME_RAILWAY_VOLUME",
+    )
+    if any(invariant not in migration_guard for invariant in required_migration_invariants):
+        raise SystemExit("schema migration must retain its fail-closed backup and restore guard")
+    recovery_hold = (ROOT / "scripts" / "recovery_hold.py").read_text(encoding="utf-8")
+    if "MIGRATION_RECOVERY_HOLD" not in recovery_hold or any(
+        forbidden in recovery_hold for forbidden in ("sqlite3", "SeanOSStore", "worker.py")
+    ):
+        raise SystemExit("migration recovery hold must not open the database or start the worker")
+    checks.append({"check": "migration_backup_and_recovery_hold", "passed": True})
     workflow = (ROOT / ".github/workflows/verify.yml").read_text(encoding="utf-8")
     if "contents: read" not in workflow or "docker build" not in workflow:
         raise SystemExit("continuous verification must be read-only and build the container")

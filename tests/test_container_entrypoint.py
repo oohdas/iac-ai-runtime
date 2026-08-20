@@ -1,6 +1,6 @@
 import unittest
 
-from scripts.container_entrypoint import worker_arguments
+from scripts.container_entrypoint import requested_restore_version, worker_arguments
 
 
 class ContainerEntrypointTests(unittest.TestCase):
@@ -53,6 +53,19 @@ class ContainerEntrypointTests(unittest.TestCase):
             worker_arguments({**base, "SEAN_OS_MONITOR_INTERVAL_SECONDS": "nan"})
         with self.assertRaisesRegex(ValueError, "single-line"):
             worker_arguments({**base, "SEAN_OS_MONITOR_DESTINATION_REF": "bad\nvalue"})
+
+    def test_restore_version_is_explicit_and_fails_closed(self):
+        self.assertIsNone(requested_restore_version({}))
+        self.assertIsNone(requested_restore_version({"SEAN_OS_RESTORE_SCHEMA_VERSION":""}))
+        self.assertEqual(
+            requested_restore_version({"SEAN_OS_RESTORE_SCHEMA_VERSION":"7"}), 7
+        )
+        for invalid in ("0", "-1", " 7", "7 ", "seven"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "positive integer"):
+                    requested_restore_version(
+                        {"SEAN_OS_RESTORE_SCHEMA_VERSION":invalid}
+                    )
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ The IAC-owned local `main` branch is a release candidate against deployed baseli
 - synthetic-only Claude Code delivery evidence linked to canonical project/task,
   repository review, changed paths, tests, activity, and budgeted cost;
 - tested deployed-baseline schema v7→v12 migration, updated operational evidence,
-  and no live adapter.
+  fail-closed same-volume migration backup/restore, recovery hold, and no live adapter.
 
 ## Canonical verification
 
@@ -37,9 +37,10 @@ be recorded immediately before approval and push.
 
 ## Deployment and rollback gate
 
-No push is authorized by this artifact. A completed, locked manual Railway volume
-backup taken while the worker is stopped is mandatory because schema v12 cannot be
-opened by the older deployed code. On failure, stop execution and use Railway's staged
-same-project/environment restore for the exact pre-release backup; do not point
-`1aa8762` at a v12 database. See `PRODUCTION_DECISION.md` and
-`PRODUCTION_DRILL_PLAN.md` for the exact approval and recovery boundaries.
+No push is authorized by this artifact. Railway native backups are Pro-only on the
+current Hobby plan, so the candidate must create and verify its schema-v7 backup
+before migration and automatically restore it if migration fails. A separately
+approved recovery flag restores that backup and enters a database-closed hold before
+Railway rolls source and variables back to baseline `1aa8762`. This same-volume guard
+is not an independent disaster-recovery backup. See `PRODUCTION_DECISION.md` and
+`PRODUCTION_DRILL_PLAN.md` for the exact boundaries.

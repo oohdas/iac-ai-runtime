@@ -42,8 +42,11 @@ Current Railway evidence and unresolved controls are recorded in
 
 ## Recovery and monitoring
 
-- [ ] A stopped-worker manual Railway volume backup is completed and locked before
-  schema migration; scheduled retention and access ownership remain a broader-production gate.
+- [x] The release candidate creates and verifies a SHA-256 same-volume v7 backup
+  before migration, restores it automatically on migration failure, and denies
+  worker startup; explicit restore enters a database-closed recovery hold.
+- [ ] An independently stored encrypted production backup is completed and locked;
+  Railway native backups are Pro-only on the current Hobby plan.
 - [ ] A restore into an isolated destination passes integrity and sentinel checks.
 - [x] Stale worker, policy block, dead letter, budget block, and backup failure
   classifications and non-delivering route envelopes are tested locally.
@@ -54,7 +57,7 @@ Current Railway evidence and unresolved controls are recorded in
 ## Further Sean approval required
 
 - [x] Isolated IAC Railway pilot, one persistent volume, and $10/$15 spend controls.
-- [ ] Push and automatic deployment of the reviewed schema-v12 release candidate.
+- [ ] Push and automatic deployment of the revised guarded schema-v12 candidate.
 - [ ] Production backup destination, encryption ownership, retention, and restore drill.
 - [ ] Any connection to Claude, email, calendar, ShopVox, QuickBooks Online, QNAP, RBC, or customers.
 - [ ] Any handler capable of sending messages, changing external records, deploying code, or moving money.

@@ -77,6 +77,9 @@ customer action, or paid model service is connected.
 48. Synthetic coding-delivery evidence requires a review branch, an IAC-linked
     project and task, repository-relative changed paths, tests, activity units, and
     a positive reserved cost; it never invokes Claude, GitHub, or a network client.
+49. An older production schema is verified and copied to a mode-0600, SHA-256
+    manifested backup before migration. Migration failure restores that backup and
+    denies worker startup; explicit recovery restores and enters a database-closed hold.
 
 ## Local verification
 
@@ -257,6 +260,29 @@ Use `SeanOSStore.set_kill_switch(Actor.sean(), True)`. Existing infrastructure s
 6. Run the full test suite.
 7. Disable the kill switch only after the checks pass.
 8. Restart one worker and observe health before scaling.
+
+## Guarded schema release and rollback
+
+The container entrypoint performs the production schema guard after dropping to the
+worker uid/gid and before starting the worker. For an older schema it:
+
+1. verifies the source integrity and schema ledger;
+2. creates `/data/iac-ai.db.pre-migration-v7-to-v12.db` plus a mode-0600 manifest;
+3. verifies the backup's integrity, foreign keys, schema, size, and SHA-256;
+4. migrates and verifies schema v12; and
+5. starts the worker only after every check passes.
+
+Any migration exception restores v7 from the verified backup, quarantines the failed
+database for later diagnosis, and exits before worker startup. If migration succeeds
+but later release verification fails, stop the service and obtain exact approval to
+set `SEAN_OS_RESTORE_SCHEMA_VERSION=7`. The candidate restores v7 and starts only
+`MIGRATION_RECOVERY_HOLD`, which does not open the database. Then select Railway's
+known-good baseline deployment so its source and variables return together.
+
+Never start baseline `1aa8762` against schema v12. Never clear the recovery hold by
+starting the candidate worker against restored schema v7. This file-level copy is on
+the same Railway volume and protects only migration rollback; it is not the independent
+encrypted backup required before real data or broader production.
 
 ## Production prerequisites requiring Sean
 

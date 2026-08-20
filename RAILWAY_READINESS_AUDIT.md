@@ -28,11 +28,19 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
   Railway remounted the same persistent volume before container startup.
 - The Railway GitHub App is restricted to `oohdas/iac-ai-runtime`; production
   tracks `main` and automatic deployments on approved pushes are enabled.
+- The Hobby Backups page was checked while the worker was stopped on 2026-08-20.
+  It showed backups/PITR as Pro-only and contained no backup. The release was
+  aborted without a push, upgrade, variable change, or substitute production action.
+- Baseline `1aa8762` was restored immediately as successful deployment
+  `e1e91a4c-7ee0-47cd-b2b9-880575d4e457`; one running instance and the original
+  `/data` volume were reverified.
 - The local container entrypoint now has a default-off, all-or-none environment
   contract for integrated non-delivering monitoring. No monitoring route variable
   has been added to Railway, and no alert destination or delivery is authorized.
-- The reviewed local branch is ahead of deployed `origin/main`; no later commit is
-  authorized for push until the encrypted backup and schema-v12 release package is approved.
+- The reviewed local branch now has a same-volume, verified pre-migration backup,
+  automatic restore, and recovery-hold guard. This protects the v7→v12 release but
+  does not satisfy independent disaster recovery. No later commit is authorized
+  for push until the revised no-upgrade package is approved.
 
 ## Required pre-deployment controls
 
@@ -43,12 +51,13 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
 5. [x] Set `SEAN_OS_DATABASE=/data/iac-ai.db`.
 6. [x] Keep the worker unexposed with no public domain.
 7. [x] Verify successful startup against the volume-backed IAC database.
-8. [ ] Verify runtime uid, production kill switch, production backup, isolated
+8. [ ] Verify runtime uid, production kill switch, independent production backup, isolated
    restore, and alert delivery before broader production approval. Restart and
    volume-remount persistence have been verified. Deterministic local alert
    classification now covers stale workers, blocked work, dead letters, budget
    stops, integrity failures, kill-switch activation, and backup failure;
-   external delivery is intentionally not configured.
+   external delivery is intentionally not configured. A local fail-closed migration
+   guard now covers the release-specific v7→v12 rollback path.
 9. [ ] Create `SEAN_OS_INTERFACE_TOKEN` only if a separate authenticated
    interface service is approved; the private worker pilot does not require it.
 

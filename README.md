@@ -30,6 +30,8 @@ This build intentionally uses Python's standard library and SQLite so it can be 
 - Non-root container packaging and a Railway worker manifest with bounded restart policy
 - Machine-readable health command suitable for supervision and deployment gates
 - Restart-safe schema migrations that preserve legacy queued work
+- Fail-closed production migration guard with verified same-volume pre-migration
+  backup, automatic rollback, and a database-closed operator recovery hold
 - SHA-256 manifested backups and verified, non-overwriting restores
 - Automated recovery drill with integrity and sentinel-record verification
 - Explicit production gate checklist for ownership, security, monitoring, storage, and approvals

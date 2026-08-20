@@ -12,8 +12,10 @@
 ## Release evidence
 
 - Canonical gate: `python3 scripts/verify_release.py`
-- Runtime tests: 119 passing in the canonical release gate
+- Runtime tests: 125 passing in the canonical release gate
 - Schema: restart-safe additive migration from deployed v7 to release v12
+- Migration recovery: verified SHA-256 same-volume backup, automatic restore on
+  migration failure, and explicit database-closed recovery hold
 - Recovery and kill-switch drills: included in the canonical gate
 - GitHub workflow: read-only verification plus container build; no deploy step
 - Bridge contract: unchanged and verified by its committed schema hash
@@ -22,18 +24,18 @@
 
 1. Confirm the local tree is clean and record the exact head and commit list after
    `1aa8762`.
-2. Obtain Sean's explicit approval for the backup-and-deploy package.
-3. Stop the single worker, create and lock one completed manual Railway volume
-   backup, and record its timestamp without inspecting database contents.
-4. Push the reviewed local `main` to the existing IAC remote once.
+2. Obtain Sean's explicit approval for the revised guarded-deploy package.
+3. Push the reviewed local `main` to the existing IAC remote once.
+4. Confirm the entrypoint created and verified its v7 backup before migration.
 5. Observe Railway automatic deployment and run the checks in
    `PRODUCTION_DECISION.md` without enabling any optional variable or connector.
 6. Preserve the deployment, backup, and verification evidence without record content
    or secrets.
 
-Railway's documented restore stages a replacement volume in the same project and
-environment while retaining the former volume. Do not deploy that staged restore
-unless the release rollback condition is met and the exact backup is reviewed.
+If recovery is required, follow the exact automatic or approval-gated recovery path
+in `PRODUCTION_DECISION.md`, then use Railway's selected baseline-deployment rollback
+so source and variables return together. The migration backup is same-volume and is
+not a substitute for independent broader-production backup and restore testing.
 
 ## Not authorized by handoff
 

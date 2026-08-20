@@ -1,60 +1,63 @@
-# Sean OS v0.1 — Next Production Decision
+# Sean OS v0.1 — Revised Production Decision
 
 ## Current status
 
-- IAC source is in the private `oohdas/iac-ai-runtime` repository.
-- A private, unexposed Railway worker pilot runs one replica with a persistent
-  volume at `/data` and tracks repository branch `main`.
-- Railway automatic deployment means a push to `main` is also a production change.
-- Deployed source baseline is `1aa8762`; the reviewed local branch contains the
-  later security, monitoring, delivery-recovery, and schema-v12 work. That baseline
-  supports schema v7, so the controlled release performs the tested v7→v12 upgrade.
-- The pilot contains no approved real data or live connector.
+- The private IAC Railway pilot is back on healthy baseline `1aa8762`, deployment
+  `e1e91a4c-7ee0-47cd-b2b9-880575d4e457`, with one replica and `/data` attached.
+- The approved native-backup release was stopped before any push after Railway's
+  Backups page showed that backups/PITR require Pro. No backup, plan upgrade,
+  variable change, or new-source deployment occurred.
+- The reviewed local release now includes a fail-closed v7→v12 migration guard.
+  It is not yet pushed.
 
-## Exact decision required next
+## Revised decision required
 
-Approve one controlled release package covering:
+Approve one controlled no-upgrade release package:
 
-1. stop the single worker so SQLite is quiescent, then create and lock one manual
-   Railway volume backup from the service's Backups tab without inspecting records;
-2. record the completed backup timestamp, keep the original volume, and verify the
-   backup is available for Railway's staged same-project/environment restore;
-3. push the clean, release-gated local `main` range after `1aa8762` to
-   `oohdas/iac-ai-runtime/main`, allowing Railway's existing automatic deployment;
-4. leave all monitoring, synthetic-delivery, interface, operator, and connector
-   environment variables unchanged and disabled;
-5. verify one replica, private exposure, `/data` volume attachment, schema v12,
-   IAC scope profile, database integrity, worker uid 10001, and healthy startup;
-6. stop and stage the locked pre-release backup restore if migration or health
-   verification fails; review the staged replacement volume before deploying it.
+1. push the clean, release-gated local `main` range after `1aa8762` to
+   `oohdas/iac-ai-runtime/main`, allowing the existing automatic deployment;
+2. before schema migration, let the entrypoint create a verified SHA-256 backup
+   and manifest beside the database on the attached `/data` volume;
+3. automatically restore schema v7 and deny worker startup if migration fails;
+4. leave every optional monitoring, delivery, interface, operator, and connector
+   variable unchanged and disabled;
+5. verify one replica, private exposure, `/data`, schema v12, IAC scope profile,
+   integrity, uid/gid 10001, backup evidence, and healthy startup;
+6. if migration fails, select Railway's known-good baseline deployment and roll
+   back only after confirming the automatic restore returned the database to v7;
+7. if migration succeeds but a later release check fails, stop the worker, set
+   `SEAN_OS_RESTORE_SCHEMA_VERSION=7` for one candidate deployment, verify its
+   recovery-hold evidence, then roll back to the baseline deployment, which also
+   restores the baseline variables and removes the recovery flag.
 
-Railway documents manual backups for any volume, including SQLite; restores are staged
-to a replacement volume while the former volume is retained. Incremental backup
-storage remains subject to the existing $10 soft/$15 hard workspace controls. This
-decision does not authorize live Claude, alerts, external messages, real data, new
-credentials, a public domain, new services, additional replicas, or higher spend.
+This package does not authorize a Pro upgrade, higher spend, a public endpoint,
+new services or replicas, live Claude/model use, real data, external messages, or
+any connector.
+
+## Recovery limits
+
+The same-volume file protects this specific schema migration; it is not an
+independent disaster-recovery backup. A separate encrypted off-volume backup and
+isolated restore drill remain mandatory before broader production or real data.
+Native Railway backups are unavailable on the current Hobby plan.
+
+Railway documents that rollback/redeploy of a selected prior deployment uses that
+deployment's source, image, and variables. The v7 database must never be opened by
+the new worker after recovery, and the v12 database must never be opened by baseline
+`1aa8762`.
+
+Platform procedure: [Railway deployment actions](https://docs.railway.com/deployments/deployment-actions).
 
 ## Ownership boundary
 
 1. `seansadhoo/sean-os-personal` remains Sean-owned and outside an IAC sale.
-2. `oohdas/iac-ai-runtime`, its IAC deployment, and IAC records remain IAC-owned.
+2. `oohdas/iac-ai-runtime`, its deployment, and IAC records remain IAC-owned.
 3. Cross-domain direction uses only the versioned allowlisted bridge; neither
    runtime receives the other domain's private database or secrets.
 
-## Rollback constraint
-
-Schema v12 is forward-only for this release. Rolling source back to `1aa8762`
-without restoring the matching pre-release database is prohibited because the older
-v7 runtime rejects newer schema versions. Recovery therefore means: kill switch or stop
-worker, use Railway's staged restore of the locked pre-release backup, review the new
-volume mapping, then deploy the restored source/database pair. Railway backups restore
-only within the same project and environment and restoring removes newer backups, so
-the exact pre-release backup must be selected deliberately.
-
-Platform procedure: [Railway volume backups](https://docs.railway.com/volumes/backups).
-
 ## Still separately approval-gated
 
+- broader-production backup service, retention, and independent restore drill;
 - live model/API usage or Claude/Claude Code repository mutation;
 - production monitoring routes or alert delivery;
 - interface/operator credentials or any public service;
