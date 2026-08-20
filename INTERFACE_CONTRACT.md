@@ -10,6 +10,8 @@ ChatGPT is the intended primary conversational interface, not a database adminis
 - Request IDs are immutable and idempotent. Reusing an ID with different content is rejected.
 - Request bodies are capped at 1 MB and response caching is disabled.
 - Failed authentication is audited without logging the bearer token or request body.
+- Ordinary IAC interface and Sean operator credentials are distinct; the ordinary
+  credential cannot decide or consume an approval.
 
 ## Exposed commands
 
@@ -25,9 +27,27 @@ ChatGPT is the intended primary conversational interface, not a database adminis
 | `IMPORT_CLAUDE_ARTIFACT` | Imports a synthetic artifact only when its connector gate is enabled |
 | `GENERATE_REPORT` | Creates a local operational report |
 
-Arbitrary action names, extra fields, PERSONAL scope, approvals, credentials, external sends, deployments, financial transfers, and connector activation are not exposed.
+Arbitrary action names, extra fields, PERSONAL scope, unbounded approvals, credentials, external sends, deployments, financial transfers, and connector activation are not exposed.
 
-Scoped reads are available for individual records, filtered record lists, command status/results, and the audit trace. PERSONAL records and audit events are not visible to the IAC interface principal.
+Scoped reads are available for individual records, filtered record lists, command
+status/results, the audit trace, active incidents, and delivery-outbox review.
+PERSONAL records and audit events are not visible to the IAC interface principal.
+
+## Incident and alert-delivery operations
+
+| Method and path | Credential | Effect |
+|---|---|---|
+| `GET /v1/incidents` | IAC interface | Lists active IAC incidents only |
+| `POST /v1/incidents/{id}/resolve` | Sean operator | Records a reasoned local resolution |
+| `GET /v1/deliveries?status=STAGED` | IAC interface | Reviews scope-filtered durable outbox items |
+| `POST /v1/deliveries/stage` | IAC interface | Idempotently stages a plan for its incident generation |
+| `POST /v1/deliveries/{id}/request-approval` | IAC interface | Creates one bounded exact pending request |
+| `POST /v1/deliveries/{id}/decision` | Sean operator | Approves or denies the exact request with a reason |
+| `POST /v1/deliveries/{id}/authorize` | Sean operator | Atomically consumes the exact approved action/target/scope |
+
+Decision and authorization are separate restart-safe steps. An approved request can
+be recovered after interruption without repeating Sean's decision. None of these
+routes invokes the synthetic adapter or a network delivery implementation.
 
 ## Production prerequisites
 

@@ -182,3 +182,66 @@ class CommandGateway:
         if incident["owner_scope"] != scope:
             raise AuthorizationError("Incident is outside the interface scope")
         return self.store.resolve_alert_incident(self.actor, incident_id, reason=reason)
+
+    def deliveries(
+        self, *, status: str | None = None, scope: str = "IAC"
+    ) -> list[dict[str, Any]]:
+        if scope != "IAC":
+            raise AuthorizationError("v0.1 delivery interface is isolated to IAC scope")
+        return self.store.list_alert_deliveries(self.actor, scope, status=status)
+
+    def stage_delivery(self, plan_id: str, *, scope: str = "IAC") -> dict[str, Any]:
+        if scope != "IAC":
+            raise AuthorizationError("v0.1 delivery interface is isolated to IAC scope")
+        delivery=self.store.stage_alert_delivery(self.actor, plan_id)
+        if delivery["owner_scope"] != scope:
+            raise AuthorizationError("Alert delivery is outside the interface scope")
+        return delivery
+
+    def request_delivery_approval(
+        self, delivery_id: str, *, max_impact: str, expires_at: str,
+        scope: str = "IAC",
+    ) -> str:
+        if scope != "IAC":
+            raise AuthorizationError("v0.1 delivery interface is isolated to IAC scope")
+        delivery=self.store.get_alert_delivery(self.actor, delivery_id)
+        if delivery["owner_scope"] != scope:
+            raise AuthorizationError("Alert delivery is outside the interface scope")
+        return self.store.request_alert_delivery_approval(
+            self.actor, delivery_id, max_impact=max_impact, expires_at=expires_at
+        )
+
+    def decide_delivery_approval(
+        self, delivery_id: str, *, approval_id: str, approve: bool, reason: str,
+        scope: str = "IAC",
+    ) -> str:
+        if scope != "IAC":
+            raise AuthorizationError("v0.1 delivery interface is isolated to IAC scope")
+        if not self.actor.is_sean:
+            raise AuthorizationError("Only Sean's authenticated interface may decide approvals")
+        delivery=self.store.get_alert_delivery(self.actor, delivery_id)
+        approval=self.store.connection.execute(
+            "SELECT action_type, target, scope FROM approvals WHERE record_id=?", (approval_id,)
+        ).fetchone()
+        if approval is None:
+            raise ValidationError("Approval not found")
+        if (delivery["owner_scope"] != scope or approval["scope"] != scope or
+                approval["action_type"] != "DELIVER_ALERT" or approval["target"] != delivery_id):
+            raise AuthorizationError("Approval does not match the exact IAC delivery")
+        return self.store.decide_approval(
+            self.actor, approval_id, approve=approve, reason=reason
+        )
+
+    def authorize_delivery(
+        self, delivery_id: str, *, approval_id: str, scope: str = "IAC"
+    ) -> dict[str, Any]:
+        if scope != "IAC":
+            raise AuthorizationError("v0.1 delivery interface is isolated to IAC scope")
+        if not self.actor.is_sean:
+            raise AuthorizationError("Only Sean's authenticated interface may authorize delivery")
+        delivery=self.store.get_alert_delivery(self.actor, delivery_id)
+        if delivery["owner_scope"] != scope:
+            raise AuthorizationError("Alert delivery is outside the interface scope")
+        return self.store.authorize_alert_delivery(
+            self.actor, delivery_id, approval_id=approval_id
+        )

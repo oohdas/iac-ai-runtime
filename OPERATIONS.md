@@ -56,6 +56,9 @@ The continuous runtime is implemented and verified locally. It is not yet a 24/7
 42. Alert delivery is staged once per incident generation in a durable outbox. Its
     exact approval must match action, delivery ID, and scope atomically; v0.1 accepts
     only deterministic synthetic receipts that prove no network or external effect.
+43. The primary interface separates safe staging/request operations from Sean's
+    decision/authorization operations. A crash between decision and authorization
+    leaves durable `APPROVED` evidence and does not repeat or silently consume it.
 
 ## Local verification
 
@@ -122,6 +125,9 @@ Expected evidence:
 - the outbox deduplicates each active incident generation, refuses resolved incidents,
   preserves an exact payload hash, leaves mismatched approvals unconsumed, and rejects
   every receipt that claims live mode or network use.
+- the in-memory HTTP contract test proves the ordinary interface credential receives
+  `403` at the operator decision route, while the operator credential can decide and
+  separately authorize the exact staged delivery; no socket or external service is used.
 
 ## Continuous verification
 

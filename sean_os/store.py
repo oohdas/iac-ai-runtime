@@ -291,6 +291,9 @@ class SeanOSStore:
     ) -> str:
         if not actor.is_sean:
             raise AuthorizationError("Only Sean may create approvals in v0.1")
+        if secret_findings({"action_type":action_type, "target":target,
+                            "max_impact":max_impact, "conditions":conditions or {}}):
+            raise ValidationError("Secret-like material is prohibited in approval records")
         approval_id = self.create_record(
             actor, "APPROVAL", scope, {"action_type": action_type, "target": target},
             source="approval-queue",
@@ -315,6 +318,9 @@ class SeanOSStore:
         self, actor: Actor, *, action_type: str, target: str, scope: str,
         max_impact: str, expires_at: str, conditions: dict[str, Any] | None = None,
     ) -> str:
+        if secret_findings({"action_type":action_type, "target":target,
+                            "max_impact":max_impact, "conditions":conditions or {}}):
+            raise ValidationError("Secret-like material is prohibited in approval records")
         self._authorize(actor, scope, (), "write")
         approval_id=self.create_record(
             actor, "APPROVAL", scope, {"action_type":action_type, "target":target},
@@ -340,6 +346,24 @@ class SeanOSStore:
             raise AuthorizationError("Only Sean may decide approval requests")
         if not reason.strip():
             raise ValidationError("Approval decisions require a reason")
+        if secret_findings({"reason":reason}):
+            raise ValidationError("Secret-like material is prohibited in approval evidence")
+        row=self.connection.execute(
+            "SELECT scope, status, expires_at FROM approvals WHERE record_id=?", (approval_id,)
+        ).fetchone()
+        if row is None:
+            raise ValidationError("Approval not found")
+        self._authorize(actor, row["scope"], (), "write")
+        if row["status"] != "PENDING":
+            raise ValidationError("Approval is not pending")
+        if datetime.fromisoformat(row["expires_at"]) <= datetime.now(timezone.utc):
+            self.connection.execute(
+                "UPDATE approvals SET status='EXPIRED' WHERE record_id=?", (approval_id,)
+            )
+            self.connection.commit()
+            self._audit(actor, "DECIDE_APPROVAL", "DENIED", "Approval request expired",
+                        approval_id, {"status":"EXPIRED"})
+            raise ValidationError("Approval request expired")
         status="APPROVED" if approve else "DENIED"
         cursor=self.connection.execute(
             "UPDATE approvals SET status=? WHERE record_id=? AND status='PENDING'",
@@ -442,6 +466,60 @@ class SeanOSStore:
         if result["receipt_payload"]:
             result["receipt_payload"]=json.loads(result["receipt_payload"])
         return result
+
+    def list_alert_deliveries(
+        self, actor: Actor, scope: str, *, status: str | None = None
+    ) -> list[dict[str, Any]]:
+        if scope not in {"PERSONAL", "IAC"}:
+            raise ValidationError("Alert deliveries require PERSONAL or IAC scope")
+        self._authorize(actor, scope, (), "read")
+        allowed={"STAGED", "AUTHORIZED", "SYNTHETIC_DELIVERED", "FAILED"}
+        if status is not None and status not in allowed:
+            raise ValidationError("Unknown alert delivery status")
+        sql="SELECT delivery_id FROM alert_delivery_outbox WHERE owner_scope=?"
+        parameters: list[Any]=[scope]
+        if status is not None:
+            sql += " AND status=?"; parameters.append(status)
+        sql += " ORDER BY created_at DESC, delivery_id"
+        return [self.get_alert_delivery(actor, row["delivery_id"])
+                for row in self.connection.execute(sql, parameters)]
+
+    def request_alert_delivery_approval(
+        self, actor: Actor, delivery_id: str, *, max_impact: str, expires_at: str
+    ) -> str:
+        delivery=self.get_alert_delivery(actor, delivery_id)
+        self._authorize(actor, delivery["owner_scope"], (), "write")
+        if delivery["status"] != "STAGED":
+            raise ValidationError("Only staged deliveries may request approval")
+        if not max_impact.strip():
+            raise ValidationError("Alert delivery approval requires a bounded impact")
+        existing=self.connection.execute(
+            """SELECT record_id, max_impact, expires_at FROM approvals
+               WHERE action_type='DELIVER_ALERT' AND target=? AND scope=? AND status='PENDING'
+               ORDER BY record_id""",
+            (delivery_id, delivery["owner_scope"]),
+        ).fetchall()
+        active=[]
+        for approval in existing:
+            if datetime.fromisoformat(approval["expires_at"]) <= datetime.now(timezone.utc):
+                self.connection.execute(
+                    "UPDATE approvals SET status='EXPIRED' WHERE record_id=?",
+                    (approval["record_id"],),
+                )
+            else:
+                active.append(approval)
+        if len(active) != len(existing):
+            self.connection.commit()
+        existing=active
+        if existing:
+            if len(existing) == 1 and existing[0]["max_impact"] == max_impact and existing[0]["expires_at"] == expires_at:
+                return existing[0]["record_id"]
+            raise ValidationError("A different alert delivery approval request is already pending")
+        return self.request_approval(
+            actor, action_type="DELIVER_ALERT", target=delivery_id,
+            scope=delivery["owner_scope"], max_impact=max_impact, expires_at=expires_at,
+            conditions={"delivery_id":delivery_id, "payload_sha256":delivery["payload_sha256"]},
+        )
 
     def authorize_alert_delivery(
         self, actor: Actor, delivery_id: str, *, approval_id: str

@@ -75,6 +75,23 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
             )
             self._json(401, {"error":"unauthorized"}); return False
 
+        def _operator_auth_or_reject(self, affected_id: Optional[str] = None) -> bool:
+            if self._operator_authorized(): return True
+            store.record_policy_decision(
+                Actor("unauthenticated-interface", frozenset()), affected_id, False,
+                "Operator authentication failed", {"path":self.path},
+            )
+            self._json(403, {"error":"operator_authorization_required"}); return False
+
+        def _request_json(self) -> dict:
+            length=int(self.headers.get("Content-Length", "0"))
+            if length <= 0 or length > MAX_BODY_BYTES:
+                raise ValidationError("Request body size is invalid")
+            value=json.loads(self.rfile.read(length))
+            if not isinstance(value, dict):
+                raise ValidationError("Request body must be a JSON object")
+            return value
+
         def do_GET(self):
             if not self._auth_or_reject(): return
             parsed=urlparse(self.path)
@@ -105,6 +122,15 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
                 return
             if parts == ["v1","incidents"]:
                 self._json(200, {"incidents":gateway.active_incidents()}); return
+            if parts == ["v1","deliveries"]:
+                query=parse_qs(parsed.query)
+                try:
+                    self._json(200, {"deliveries":gateway.deliveries(
+                        status=query.get("status", [None])[0]
+                    )})
+                except ValidationError as exc:
+                    self._json(400, {"error":"invalid_request", "message":str(exc)})
+                return
             if len(parts) == 4 and parts[:2] == ["v1","commands"] and parts[3] in {"status","result"}:
                 work_id=parts[2]
                 try:
@@ -125,17 +151,9 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
         def do_POST(self):
             parts=urlparse(self.path).path.strip("/").split("/")
             if len(parts) == 4 and parts[:2] == ["v1","incidents"] and parts[3] == "resolve":
-                if not self._operator_authorized():
-                    store.record_policy_decision(
-                        Actor("unauthenticated-interface", frozenset()), parts[2], False,
-                        "Operator authentication failed", {"path":self.path},
-                    )
-                    self._json(403, {"error":"operator_authorization_required"}); return
+                if not self._operator_auth_or_reject(parts[2]): return
                 try:
-                    length=int(self.headers.get("Content-Length", "0"))
-                    if length <= 0 or length > MAX_BODY_BYTES:
-                        raise ValidationError("Request body size is invalid")
-                    request=json.loads(self.rfile.read(length))
+                    request=self._request_json()
                     if set(request) != {"reason"} or not isinstance(request["reason"], str):
                         raise ValidationError("Resolution request fields are invalid")
                     incident=operator_gateway.resolve_incident(parts[2], reason=request["reason"])
@@ -144,14 +162,64 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
                         json.JSONDecodeError) as exc:
                     self._json(400, {"error":"invalid_request", "message":str(exc)})
                 return
+            if (len(parts) == 4 and parts[:2] == ["v1","deliveries"] and
+                    parts[3] in {"decision", "authorize"}):
+                if not self._operator_auth_or_reject(parts[2]): return
+                try:
+                    request=self._request_json()
+                    if parts[3] == "decision":
+                        if (set(request) != {"approval_id","approve","reason"} or
+                                not isinstance(request["approval_id"], str) or
+                                not isinstance(request["approve"], bool) or
+                                not isinstance(request["reason"], str)):
+                            raise ValidationError("Approval decision fields are invalid")
+                        status=operator_gateway.decide_delivery_approval(
+                            parts[2], approval_id=request["approval_id"],
+                            approve=request["approve"], reason=request["reason"],
+                        )
+                        self._json(200, {"approval_id":request["approval_id"], "status":status})
+                    else:
+                        if set(request) != {"approval_id"} or not isinstance(request["approval_id"], str):
+                            raise ValidationError("Delivery authorization fields are invalid")
+                        delivery=operator_gateway.authorize_delivery(
+                            parts[2], approval_id=request["approval_id"]
+                        )
+                        self._json(200, {"delivery":delivery})
+                except (ValidationError, AuthorizationError, ValueError, TypeError,
+                        json.JSONDecodeError) as exc:
+                    self._json(400, {"error":"invalid_request", "message":str(exc)})
+                return
             if not self._auth_or_reject(): return
+            if parts == ["v1","deliveries","stage"]:
+                try:
+                    request=self._request_json()
+                    if set(request) != {"plan_id"} or not isinstance(request["plan_id"], str):
+                        raise ValidationError("Delivery staging fields are invalid")
+                    self._json(201, {"delivery":gateway.stage_delivery(request["plan_id"])})
+                except (ValidationError, AuthorizationError, ValueError, TypeError,
+                        json.JSONDecodeError) as exc:
+                    self._json(400, {"error":"invalid_request", "message":str(exc)})
+                return
+            if (len(parts) == 4 and parts[:2] == ["v1","deliveries"] and
+                    parts[3] == "request-approval"):
+                try:
+                    request=self._request_json()
+                    if (set(request) != {"max_impact","expires_at"} or
+                            not all(isinstance(request[key], str) for key in request)):
+                        raise ValidationError("Approval request fields are invalid")
+                    approval_id=gateway.request_delivery_approval(
+                        parts[2], max_impact=request["max_impact"],
+                        expires_at=request["expires_at"],
+                    )
+                    self._json(201, {"approval_id":approval_id, "status":"PENDING"})
+                except (ValidationError, AuthorizationError, ValueError, TypeError,
+                        json.JSONDecodeError) as exc:
+                    self._json(400, {"error":"invalid_request", "message":str(exc)})
+                return
             if self.path != "/v1/commands":
                 self._json(404, {"error":"not_found"}); return
             try:
-                length=int(self.headers.get("Content-Length", "0"))
-                if length <= 0 or length > MAX_BODY_BYTES:
-                    raise ValidationError("Request body size is invalid")
-                request=json.loads(self.rfile.read(length))
+                request=self._request_json()
                 if set(request) != {"request_id","command_type","payload"}:
                     raise ValidationError("Request envelope fields are invalid")
                 result=gateway.submit(

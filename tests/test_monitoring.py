@@ -447,6 +447,103 @@ class MonitoringTests(unittest.TestCase):
         finally:
             store.close()
 
+    def test_primary_interface_delivery_workflow_is_durable_and_sean_gated(self):
+        store=SeanOSStore(":memory:")
+        try:
+            monitor=Actor("monitor", frozenset({"IAC"}))
+            plan=plan_alert_deliveries(
+                [{"code":"STALE_WORKER", "severity":"CRITICAL", "summary":"stale"}],
+                route=EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias"),
+                owner_scope="IAC",
+            )[0]
+            store.record_alert_observation(monitor, plan)
+            interface=CommandGateway(store, Actor("chatgpt-interface", frozenset({"IAC"})))
+            staged=interface.stage_delivery(plan["plan_id"])
+            self.assertEqual(interface.deliveries(status="STAGED"), [staged])
+            approval_id=interface.request_delivery_approval(
+                staged["delivery_id"], max_impact="one alert to approved test route",
+                expires_at="2099-01-01T00:00:00+00:00",
+            )
+            self.assertEqual(
+                interface.request_delivery_approval(
+                    staged["delivery_id"], max_impact="one alert to approved test route",
+                    expires_at="2099-01-01T00:00:00+00:00",
+                ),
+                approval_id,
+            )
+            with self.assertRaisesRegex(ValidationError, "different.*already pending"):
+                interface.request_delivery_approval(
+                    staged["delivery_id"], max_impact="changed impact",
+                    expires_at="2099-01-01T00:00:00+00:00",
+                )
+            with self.assertRaisesRegex(AuthorizationError, "Only Sean"):
+                interface.decide_delivery_approval(
+                    staged["delivery_id"], approval_id=approval_id,
+                    approve=True, reason="Synthetic route reviewed",
+                )
+            operator=CommandGateway(
+                store, Actor("sean-chatgpt-operator", frozenset({"IAC"}), is_sean=True)
+            )
+            self.assertEqual(
+                operator.decide_delivery_approval(
+                    staged["delivery_id"], approval_id=approval_id,
+                    approve=True, reason="Synthetic route reviewed",
+                ),
+                "APPROVED",
+            )
+            self.assertEqual(
+                operator.deliveries(status="STAGED")[0]["delivery_id"], staged["delivery_id"]
+            )
+            with self.assertRaisesRegex(AuthorizationError, "Only Sean"):
+                interface.authorize_delivery(staged["delivery_id"], approval_id=approval_id)
+            authorized=operator.authorize_delivery(
+                staged["delivery_id"], approval_id=approval_id
+            )
+            self.assertEqual(authorized["status"], "AUTHORIZED")
+            self.assertEqual(
+                operator.authorize_delivery(staged["delivery_id"], approval_id=approval_id),
+                authorized,
+            )
+        finally:
+            store.close()
+
+    def test_delivery_operator_rejects_approval_for_another_delivery(self):
+        store=SeanOSStore(":memory:")
+        try:
+            monitor=Actor("monitor", frozenset({"IAC"}))
+            route=EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias")
+            plans=plan_alert_deliveries(
+                [
+                    {"code":"DEAD_LETTER", "severity":"CRITICAL", "summary":"failed"},
+                    {"code":"POLICY_BLOCKED", "severity":"HIGH", "summary":"blocked"},
+                ], route=route, owner_scope="IAC",
+            )
+            interface=CommandGateway(store, Actor("chatgpt-interface", frozenset({"IAC"})))
+            deliveries=[]
+            for plan in plans:
+                store.record_alert_observation(monitor, plan)
+                deliveries.append(interface.stage_delivery(plan["plan_id"]))
+            approval_id=interface.request_delivery_approval(
+                deliveries[0]["delivery_id"], max_impact="one synthetic alert",
+                expires_at="2099-01-01T00:00:00+00:00",
+            )
+            operator=CommandGateway(
+                store, Actor("sean-chatgpt-operator", frozenset({"IAC"}), is_sean=True)
+            )
+            with self.assertRaisesRegex(AuthorizationError, "exact IAC delivery"):
+                operator.decide_delivery_approval(
+                    deliveries[1]["delivery_id"], approval_id=approval_id,
+                    approve=True, reason="wrong target",
+                )
+            self.assertEqual(
+                store.connection.execute(
+                    "SELECT status FROM approvals WHERE record_id=?", (approval_id,)
+                ).fetchone()[0],
+                "PENDING",
+            )
+        finally:
+            store.close()
+
     def test_monitor_snapshot_can_record_without_delivering(self):
         with tempfile.TemporaryDirectory() as directory:
             store = SeanOSStore(Path(directory) / "monitor.db", scope_profile="IAC")

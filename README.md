@@ -53,6 +53,8 @@ This build intentionally uses Python's standard library and SQLite so it can be 
 - Scope-filtered audit retrieval that prevents PERSONAL audit disclosure to the IAC interface
 - Schema-v10 durable alert-delivery outbox keyed by incident generation, with exact
   scope-matched approval and a deterministic no-network synthetic adapter
+- Primary-interface outbox review and restart-safe stage/request/decide/authorize
+  flow with ordinary IAC and Sean-operator credentials kept separate
 - Chief of Staff portfolio scoring, capacity allocation, low-fit challenge, and safe agent-only pausing
 - Revenue comparison across outbound, existing/inactive customers, quotes, inbound, and new channels
 - Capacity-adjusted expected return using margin, probability, cost, Sean time, strategic fit, and evidence

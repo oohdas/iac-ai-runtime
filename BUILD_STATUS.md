@@ -5,23 +5,23 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 17:20 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 17:24 EDT
-- Milestone selected: durable approval-gated alert delivery outbox
+- Last continuous-goal checkpoint started: 2026-08-20 17:25 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 17:29 EDT
+- Milestone selected: primary operator workflow for alert delivery
 - Run state: Completed; scheduled builder paused and continuous goal active
-- Last meaningful milestone: schema-v10 exact-approval alert outbox with no-network adapter
+- Last meaningful milestone: restart-safe primary operator workflow for alert delivery
 - Deployed commit: `1aa8762`
 - Runtime: Online, private, one replica, persistent volume attached
-- Concrete changes: added an incident-generation delivery outbox, immutable payload
-  hashes, atomic action/target/scope approval consumption, migration coverage, and a
-  deterministic synthetic adapter that rejects live mode and network use
-- Verification: 106 tests passed; schema-v10 release and recovery gates passed
+- Concrete changes: added scoped outbox review/staging, idempotent bounded approval
+  requests, separately authenticated decision/authorization routes, expiry handling,
+  secret rejection, exact-delivery tamper protection, and in-memory HTTP contract proof
+- Verification: 110 tests passed; schema-v10 release and recovery gates passed
 - Real data connected: No
 - Live integrations enabled: No
 - Current blocker: executing the production drill or delivering an alert requires
   Sean's separate exact approval; neither is needed for continued local development
-- Next milestone: expose staged delivery review and exact approval through the
-  separately authenticated primary operator interface; keep execution synthetic-only
+- Next milestone: add restart-safe worker processing for authorized synthetic outbox
+  items, with bounded claims and retries; retain an absolute no-network/live-mode gate
 - Sean action required: No
 
 ## Recent verified milestones
@@ -55,6 +55,8 @@ Every automation run updates it, even when no notification is sent.
     a distinct Sean operator credential; identical replay is safe and changed evidence fails.
 17. Schema v10 now stages one delivery per incident generation, atomically consumes
     exact scope-matched approval, and accepts only deterministic no-network receipts.
+18. The primary interface now reviews/stages deliveries, requests bounded approval,
+    and keeps Sean's decision and exact authorization as separate recoverable steps.
 
 ## Update contract
 

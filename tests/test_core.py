@@ -167,6 +167,24 @@ class SeanOSCoreTests(unittest.TestCase):
                 self.iac_agent, approval, action_type="DEPLOY", target="staging/iac-api"
             )
 
+    def test_approval_decision_rejects_secret_evidence(self):
+        approval=self.store.request_approval(
+            self.iac_agent, action_type="SEND_EMAIL", target="synthetic:test",
+            scope="IAC", max_impact="one synthetic message",
+            expires_at="2099-01-01T00:00:00+00:00",
+        )
+        with self.assertRaisesRegex(ValidationError, "Secret-like"):
+            self.store.decide_approval(
+                self.sean, approval, approve=False,
+                reason="sk-abcdefghijklmnopqrstuvwxyz123456",
+            )
+        self.assertEqual(
+            self.store.connection.execute(
+                "SELECT status FROM approvals WHERE record_id=?", (approval,)
+            ).fetchone()[0],
+            "PENDING",
+        )
+
     def test_sale_export_package_is_deterministic_and_has_manifest(self):
         self.store.create_record(self.sean, "GOAL", "IAC", {"name": "Transferability"})
         package = self.store.sale_export_package(self.sean)
