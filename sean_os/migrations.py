@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 
-LATEST_SCHEMA_VERSION = 9
+LATEST_SCHEMA_VERSION = 10
 
 
 def _stamp() -> str:
@@ -110,6 +110,9 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
     if 9 not in versions:
         # v9 alert incident lifecycle is additive and created by schema.sql.
         _record(connection, 9)
+    if 10 not in versions:
+        # v10 approval-gated alert delivery outbox is additive and created by schema.sql.
+        _record(connection, 10)
     version=connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
     if version != LATEST_SCHEMA_VERSION:
         raise sqlite3.DatabaseError(

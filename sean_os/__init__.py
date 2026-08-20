@@ -12,7 +12,7 @@ from .bridge import IACBridgeReceiver, BridgeDenied
 from .monitoring import (
     EscalationRoute, RuntimeMonitor, acknowledge_alert_plan,
     capture_monitor_snapshot, classify_alerts, deduplicate_alert_plans,
-    plan_alert_deliveries,
+    plan_alert_deliveries, synthetic_delivery_receipt,
 )
 
 __all__ = [
@@ -26,5 +26,5 @@ __all__ = [
     "CommandGateway", "IACBridgeReceiver", "BridgeDenied", "EscalationRoute",
     "RuntimeMonitor", "acknowledge_alert_plan", "capture_monitor_snapshot",
     "classify_alerts", "deduplicate_alert_plans",
-    "plan_alert_deliveries",
+    "plan_alert_deliveries", "synthetic_delivery_receipt",
 ]

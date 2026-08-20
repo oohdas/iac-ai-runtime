@@ -82,7 +82,7 @@ class SeanOSStore:
     def _audit(
         self, actor: Actor, action: str, result: str, reason: str,
         record_id: str | None = None, details: dict[str, Any] | None = None,
-        correlation_id: str | None = None,
+        correlation_id: str | None = None, *, commit: bool = True,
     ) -> None:
         envelope={"evidence":[], "model":None, "tool":None, "cost_units":0,
                   "outcome":result, "rollback_status":"NOT_APPLICABLE"}
@@ -95,7 +95,8 @@ class SeanOSStore:
             (str(uuid.uuid4()), now(), actor.id, action, result, reason, record_id,
              correlation_id or str(uuid.uuid4()), json.dumps(envelope, sort_keys=True)),
         )
-        self.connection.commit()
+        if commit:
+            self.connection.commit()
 
     def _authorize(self, actor: Actor, scope: str, principals: Iterable[str], action: str) -> None:
         if scope not in SCOPES:
@@ -353,13 +354,17 @@ class SeanOSStore:
 
     def consume_approval(
         self, actor: Actor, approval_id: str, *, action_type: str, target: str,
-        at: str | None = None,
+        at: str | None = None, scope: str | None = None, commit: bool = True,
     ) -> None:
         row = self.connection.execute("SELECT * FROM approvals WHERE record_id=?", (approval_id,)).fetchone()
         timestamp = at or now()
         reason = None
         if row is None:
             reason = "Approval not found"
+        elif row["scope"] not in self.allowed_scopes or row["scope"] not in actor.scopes:
+            reason = "Approval scope is not authorized for this actor or database"
+        elif scope is not None and row["scope"] != scope:
+            reason = "Approval scope does not match the action scope"
         elif row["status"] != "APPROVED":
             reason = f"Approval status is {row['status']}"
         elif row["action_type"] != action_type or row["target"] != target:
@@ -372,9 +377,132 @@ class SeanOSStore:
             raise AuthorizationError(reason)
         if not row["reusable"]:
             self.connection.execute("UPDATE approvals SET status='CONSUMED' WHERE record_id=?", (approval_id,))
-            self.connection.commit()
         self._audit(actor, "CONSUME_APPROVAL", "ALLOWED", "Exact active approval matched", approval_id,
-                    {"action_type": action_type, "target": target})
+                    {"action_type": action_type, "target": target}, commit=commit)
+
+    def stage_alert_delivery(self, actor: Actor, plan_id: str) -> dict[str, Any]:
+        observation=self.get_alert_observation(actor, plan_id)
+        plan=observation["plan_payload"]
+        scope=observation["owner_scope"]
+        self._authorize(actor, scope, (), "write")
+        if plan.get("delivery_authorized") is not False or plan.get("approval_required") is not True:
+            raise ValidationError("Only approval-gated non-delivering plans may be staged")
+        route=plan.get("route")
+        if not isinstance(route, dict) or route.get("route_id") != observation["route_id"]:
+            raise ValidationError("Alert delivery route evidence is invalid")
+        if route.get("destination_kind") not in {"EMAIL", "WEBHOOK"}:
+            raise ValidationError("Alert delivery destination kind is invalid")
+        if not isinstance(route.get("destination_ref"), str) or not route["destination_ref"].strip():
+            raise ValidationError("Alert delivery destination reference is invalid")
+        incident_identity={
+            "owner_scope":scope, "route_id":observation["route_id"],
+            "alert_code":plan.get("alert", {}).get("code"),
+        }
+        incident_id=hashlib.sha256(
+            json.dumps(incident_identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        incident=self.get_alert_incident(actor, incident_id)
+        if incident["status"] != "ACTIVE":
+            raise ValidationError("Resolved incidents cannot stage alert delivery")
+        generation=int(incident["reopen_count"])
+        identity={"incident_id":incident_id, "reopen_generation":generation}
+        delivery_id=hashlib.sha256(
+            json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        alert_payload=json.dumps(plan["alert"], sort_keys=True, separators=(",", ":"))
+        payload_sha256=hashlib.sha256(alert_payload.encode("utf-8")).hexdigest()
+        stamp=now()
+        self.connection.execute(
+            """INSERT OR IGNORE INTO alert_delivery_outbox
+               (delivery_id, plan_id, incident_id, reopen_generation, owner_scope,
+                route_id, destination_kind, destination_ref, alert_payload,
+                payload_sha256, status, created_at, updated_at)
+               VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'STAGED', ?, ?)""",
+            (delivery_id, plan_id, incident_id, generation, scope,
+             observation["route_id"], route.get("destination_kind"),
+             route.get("destination_ref"), alert_payload, payload_sha256, stamp, stamp),
+        )
+        self.connection.commit()
+        row=self.get_alert_delivery(actor, delivery_id)
+        if row["plan_id"] != plan_id or row["payload_sha256"] != payload_sha256:
+            raise ValidationError("Alert delivery identity collision or payload mutation")
+        self._audit(actor, "STAGE_ALERT_DELIVERY", "ALLOWED",
+                    "Durable delivery awaiting exact approval", delivery_id,
+                    {"scope":scope, "plan_id":plan_id, "delivery_authorized":False})
+        return row
+
+    def get_alert_delivery(self, actor: Actor, delivery_id: str) -> dict[str, Any]:
+        row=self.connection.execute(
+            "SELECT * FROM alert_delivery_outbox WHERE delivery_id=?", (delivery_id,)
+        ).fetchone()
+        if row is None:
+            raise ValidationError("Alert delivery not found")
+        self._authorize(actor, row["owner_scope"], (), "read")
+        result=dict(row); result["alert_payload"]=json.loads(result["alert_payload"])
+        if result["receipt_payload"]:
+            result["receipt_payload"]=json.loads(result["receipt_payload"])
+        return result
+
+    def authorize_alert_delivery(
+        self, actor: Actor, delivery_id: str, *, approval_id: str
+    ) -> dict[str, Any]:
+        if not actor.is_sean:
+            raise AuthorizationError("Only Sean may authorize alert delivery")
+        row=self.get_alert_delivery(actor, delivery_id)
+        if row["status"] != "STAGED":
+            if row["status"] == "AUTHORIZED" and row["approval_id"] == approval_id:
+                return row
+            raise ValidationError("Alert delivery is not awaiting approval")
+        try:
+            self.connection.execute("BEGIN IMMEDIATE")
+            self.consume_approval(
+                actor, approval_id, action_type="DELIVER_ALERT", target=delivery_id,
+                scope=row["owner_scope"], commit=False,
+            )
+            cursor=self.connection.execute(
+                """UPDATE alert_delivery_outbox SET status='AUTHORIZED', approval_id=?,
+                   updated_at=? WHERE delivery_id=? AND status='STAGED'""",
+                (approval_id, now(), delivery_id),
+            )
+            if cursor.rowcount != 1:
+                raise ValidationError("Alert delivery authorization raced with another update")
+            self._audit(actor, "AUTHORIZE_ALERT_DELIVERY", "ALLOWED",
+                        "Exact delivery approval consumed", delivery_id,
+                        {"scope":row["owner_scope"], "approval_id":approval_id}, commit=False)
+            self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
+        return self.get_alert_delivery(actor, delivery_id)
+
+    def record_synthetic_alert_delivery(
+        self, actor: Actor, delivery_id: str, receipt: dict[str, Any]
+    ) -> dict[str, Any]:
+        row=self.get_alert_delivery(actor, delivery_id)
+        self._authorize(actor, row["owner_scope"], (), "write")
+        if receipt.get("mode") != "SYNTHETIC" or receipt.get("network_used") is not False:
+            raise ValidationError("Only no-network synthetic delivery receipts are accepted")
+        if receipt.get("delivery_id") != delivery_id or receipt.get("payload_sha256") != row["payload_sha256"]:
+            raise ValidationError("Synthetic delivery receipt does not match staged payload")
+        payload=json.dumps(receipt, sort_keys=True, separators=(",", ":"))
+        if row["status"] == "SYNTHETIC_DELIVERED":
+            if row["receipt_payload"] == receipt:
+                return row
+            raise ValidationError("Alert delivery already has different receipt evidence")
+        if row["status"] != "AUTHORIZED":
+            raise AuthorizationError("Alert delivery lacks exact approval")
+        stamp=now()
+        self.connection.execute(
+            """UPDATE alert_delivery_outbox SET status='SYNTHETIC_DELIVERED',
+               attempt_count=attempt_count+1, receipt_payload=?, delivered_at=?, updated_at=?
+               WHERE delivery_id=? AND status='AUTHORIZED'""",
+            (payload, stamp, stamp, delivery_id),
+        )
+        self.connection.commit()
+        self._audit(actor, "SYNTHETIC_DELIVER_ALERT", "ALLOWED",
+                    "No-network synthetic adapter completed", delivery_id,
+                    {"scope":row["owner_scope"], "network_used":False})
+        return self.get_alert_delivery(actor, delivery_id)
 
     def transition_project(
         self, actor: Actor, record_id: str, state: str, reason: str, *,

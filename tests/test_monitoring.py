@@ -7,6 +7,7 @@ from sean_os import (
     RuntimeMonitor, SeanOSStore, ValidationError,
     acknowledge_alert_plan, classify_alerts,
     deduplicate_alert_plans, plan_alert_deliveries,
+    synthetic_delivery_receipt,
 )
 from scripts.monitor_snapshot import build_snapshot
 
@@ -348,6 +349,101 @@ class MonitoringTests(unittest.TestCase):
                 gateway.active_incidents(scope="PERSONAL")
             with self.assertRaisesRegex(AuthorizationError, "isolated to IAC"):
                 gateway.resolve_incident("missing", reason="none", scope="PERSONAL")
+        finally:
+            store.close()
+
+    def test_approval_gated_outbox_runs_synthetic_adapter_without_network(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=SeanOSStore(Path(directory) / "delivery.db")
+            try:
+                monitor=Actor("monitor", frozenset({"IAC"}))
+                plan=plan_alert_deliveries(
+                    [{"code":"NO_ACTIVE_WORKER", "severity":"CRITICAL", "summary":"none"}],
+                    route=EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias"),
+                    owner_scope="IAC",
+                )[0]
+                store.record_alert_observation(monitor, plan)
+                staged=store.stage_alert_delivery(monitor, plan["plan_id"])
+                self.assertEqual(staged["status"], "STAGED")
+                self.assertEqual(store.stage_alert_delivery(monitor, plan["plan_id"]), staged)
+                with self.assertRaisesRegex(AuthorizationError, "lacks exact approval"):
+                    store.record_synthetic_alert_delivery(
+                        monitor, staged["delivery_id"],
+                        {"mode":"SYNTHETIC", "network_used":False,
+                         "delivery_id":staged["delivery_id"],
+                         "payload_sha256":staged["payload_sha256"]},
+                    )
+                approval=store.create_approval(
+                    Actor.sean(), action_type="DELIVER_ALERT", target=staged["delivery_id"],
+                    scope="IAC", max_impact="one synthetic delivery", approver="sean",
+                    expires_at="2099-01-01T00:00:00+00:00",
+                )
+                authorized=store.authorize_alert_delivery(
+                    Actor.sean(), staged["delivery_id"], approval_id=approval
+                )
+                receipt=synthetic_delivery_receipt(
+                    authorized, delivered_at="2030-01-01T00:00:00+00:00"
+                )
+                delivered=store.record_synthetic_alert_delivery(
+                    monitor, staged["delivery_id"], receipt
+                )
+                self.assertEqual(delivered["status"], "SYNTHETIC_DELIVERED")
+                self.assertEqual(delivered["attempt_count"], 1)
+                self.assertFalse(delivered["receipt_payload"]["network_used"])
+                self.assertEqual(
+                    store.record_synthetic_alert_delivery(monitor, staged["delivery_id"], receipt),
+                    delivered,
+                )
+            finally:
+                store.close()
+
+    def test_outbox_rejects_wrong_approval_and_real_delivery_receipt(self):
+        store=SeanOSStore(":memory:")
+        try:
+            monitor=Actor("monitor", frozenset({"IAC"}))
+            plan=plan_alert_deliveries(
+                [{"code":"DEAD_LETTER", "severity":"CRITICAL", "summary":"failed"}],
+                route=EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias"),
+                owner_scope="IAC",
+            )[0]
+            store.record_alert_observation(monitor, plan)
+            staged=store.stage_alert_delivery(monitor, plan["plan_id"])
+            wrong=store.create_approval(
+                Actor.sean(), action_type="DELIVER_ALERT", target="different-target",
+                scope="IAC", max_impact="none", approver="sean",
+                expires_at="2099-01-01T00:00:00+00:00",
+            )
+            with self.assertRaisesRegex(AuthorizationError, "exact action and target"):
+                store.authorize_alert_delivery(Actor.sean(), staged["delivery_id"], approval_id=wrong)
+            self.assertEqual(store.get_alert_delivery(monitor, staged["delivery_id"])["status"], "STAGED")
+            self.assertEqual(
+                store.connection.execute(
+                    "SELECT status FROM approvals WHERE record_id=?", (wrong,)
+                ).fetchone()[0],
+                "APPROVED",
+            )
+            wrong_scope=store.create_approval(
+                Actor.sean(), action_type="DELIVER_ALERT", target=staged["delivery_id"],
+                scope="PERSONAL", max_impact="none", approver="sean",
+                expires_at="2099-01-01T00:00:00+00:00",
+            )
+            with self.assertRaisesRegex(AuthorizationError, "action scope"):
+                store.authorize_alert_delivery(
+                    Actor.sean(), staged["delivery_id"], approval_id=wrong_scope
+                )
+            exact=store.create_approval(
+                Actor.sean(), action_type="DELIVER_ALERT", target=staged["delivery_id"],
+                scope="IAC", max_impact="one synthetic delivery", approver="sean",
+                expires_at="2099-01-01T00:00:00+00:00",
+            )
+            store.authorize_alert_delivery(Actor.sean(), staged["delivery_id"], approval_id=exact)
+            with self.assertRaisesRegex(ValidationError, "no-network synthetic"):
+                store.record_synthetic_alert_delivery(
+                    monitor, staged["delivery_id"],
+                    {"mode":"LIVE", "network_used":True,
+                     "delivery_id":staged["delivery_id"],
+                     "payload_sha256":staged["payload_sha256"]},
+                )
         finally:
             store.close()
 

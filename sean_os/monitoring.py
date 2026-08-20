@@ -184,6 +184,31 @@ def acknowledge_alert_plan(
     return evidence
 
 
+def synthetic_delivery_receipt(delivery: dict[str, Any], *, delivered_at: str) -> dict[str, Any]:
+    """Generate deterministic no-network adapter evidence for an authorized outbox item."""
+    try:
+        instant=datetime.fromisoformat(delivered_at)
+    except ValueError as exc:
+        raise ValueError("delivered_at must be ISO-8601") from exc
+    if instant.tzinfo is None or instant.utcoffset() is None:
+        raise ValueError("delivered_at must include a timezone")
+    if delivery.get("status") != "AUTHORIZED":
+        raise ValueError("Synthetic adapter requires an authorized delivery")
+    receipt={
+        "schema_version":1,
+        "delivery_id":delivery.get("delivery_id"),
+        "payload_sha256":delivery.get("payload_sha256"),
+        "delivered_at":instant.isoformat(),
+        "mode":"SYNTHETIC",
+        "network_used":False,
+        "external_effect":False,
+    }
+    receipt["receipt_sha256"]=hashlib.sha256(
+        json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return receipt
+
+
 def capture_monitor_snapshot(
     store: Any, *, stale_after_seconds: int = 90,
     backup_ok: bool | None = None, route: EscalationRoute | None = None,

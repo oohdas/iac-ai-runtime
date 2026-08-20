@@ -83,7 +83,8 @@ class ActionRegistry:
                     )
                 try:
                     store.consume_approval(
-                        actor, approval_id, action_type=policy.name, target=target
+                        actor, approval_id, action_type=policy.name, target=target,
+                        scope=work["owner_scope"],
                     )
                 except AuthorizationError as exc:
                     raise PolicyDenied(str(exc), approval_required=True) from exc

@@ -51,6 +51,8 @@ This build intentionally uses Python's standard library and SQLite so it can be 
 - Recursive secret-pattern rejection on record create/update and fail-closed sale-export scanning
 - Scoped ChatGPT-interface create, retrieve, list, update, and link operations across IAC core records
 - Scope-filtered audit retrieval that prevents PERSONAL audit disclosure to the IAC interface
+- Schema-v10 durable alert-delivery outbox keyed by incident generation, with exact
+  scope-matched approval and a deterministic no-network synthetic adapter
 - Chief of Staff portfolio scoring, capacity allocation, low-fit challenge, and safe agent-only pausing
 - Revenue comparison across outbound, existing/inactive customers, quotes, inbound, and new channels
 - Capacity-adjusted expected return using margin, probability, cost, Sean time, strategic fit, and evidence
@@ -86,4 +88,4 @@ See [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) for the explicit producti
 See [INTEGRATION_ROADMAP.md](INTEGRATION_ROADMAP.md) for connector ordering and activation boundaries.
 See [INTERFACE_CONTRACT.md](INTERFACE_CONTRACT.md) for the ChatGPT authority boundary.
 
-The SQLite files created by the scripts are local and disposable. The worker is packaged for a supervised cloud process, but it has not been deployed. Production requires a persistent volume or managed database, alerts, backups, and Sean's approval of the IAC Railway service and budget. Authentication, live model workers, and real integrations remain approval-gated. The Revenue Agent handles synthetic inputs only and has no outreach, CRM, pricing, quoting, or spending authority. Unknown actions never execute; approval-blocked work waits for an explicit, exact authorization rather than retrying.
+The SQLite files created by the scripts are local and disposable. The worker is packaged for a supervised cloud process, but it has not been deployed. Production requires a persistent volume or managed database, alerts, backups, and Sean's approval of the IAC Railway service and budget. Authentication, live model workers, real integrations, and real alert delivery remain approval-gated. The outbox adapter only produces synthetic receipts and has no network implementation. The Revenue Agent handles synthetic inputs only and has no outreach, CRM, pricing, quoting, or spending authority. Unknown actions never execute; approval-blocked work waits for an explicit, exact authorization rather than retrying.

@@ -273,6 +273,30 @@ CREATE TABLE IF NOT EXISTS alert_incidents (
 CREATE INDEX IF NOT EXISTS idx_alert_incidents_scope_status
 ON alert_incidents(owner_scope, status, severity, last_seen_at);
 
+CREATE TABLE IF NOT EXISTS alert_delivery_outbox (
+    delivery_id TEXT PRIMARY KEY,
+    plan_id TEXT NOT NULL REFERENCES alert_observations(plan_id),
+    incident_id TEXT NOT NULL REFERENCES alert_incidents(incident_id),
+    reopen_generation INTEGER NOT NULL CHECK (reopen_generation >= 0),
+    owner_scope TEXT NOT NULL CHECK (owner_scope IN ('PERSONAL','IAC')),
+    route_id TEXT NOT NULL,
+    destination_kind TEXT NOT NULL CHECK (destination_kind IN ('EMAIL','WEBHOOK')),
+    destination_ref TEXT NOT NULL,
+    alert_payload TEXT NOT NULL,
+    payload_sha256 TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('STAGED','AUTHORIZED','SYNTHETIC_DELIVERED','FAILED')),
+    approval_id TEXT REFERENCES approvals(record_id),
+    attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+    receipt_payload TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    delivered_at TEXT,
+    UNIQUE(incident_id, reopen_generation)
+);
+
+CREATE INDEX IF NOT EXISTS idx_alert_delivery_outbox_scope_status
+ON alert_delivery_outbox(owner_scope, status, created_at);
+
 CREATE TRIGGER IF NOT EXISTS audit_log_no_update
 BEFORE UPDATE ON audit_log
 BEGIN

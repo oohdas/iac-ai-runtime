@@ -53,6 +53,9 @@ The continuous runtime is implemented and verified locally. It is not yet a 24/7
 41. Incident reads use the ordinary IAC interface identity; resolution requires a
     distinct optional Sean operator credential. Missing, weak, or reused operator
     credentials fail closed, and rejected attempts are audited without secrets.
+42. Alert delivery is staged once per incident generation in a durable outbox. Its
+    exact approval must match action, delivery ID, and scope atomically; v0.1 accepts
+    only deterministic synthetic receipts that prove no network or external effect.
 
 ## Local verification
 
@@ -107,7 +110,7 @@ Expected evidence:
 - identical alert plans receive deterministic IDs, repeats can be suppressed across
   runs, and acknowledgements produce hashed, timezone-aware local evidence while
   keeping `delivery_authorized=false`.
-- schema v9 durably stores PERSONAL or IAC alert observations, counts identical
+- schema v10 durably stores PERSONAL or IAC alert observations, counts identical
   occurrences, scope-filters reads, and permits one immutable Sean-only local
   acknowledgement; it also maintains resolvable/reopenable incidents without adding
   a delivery capability.
@@ -116,6 +119,9 @@ Expected evidence:
 - the primary interface can query IAC active incidents; local resolution requires
   the distinct `SEAN_OS_OPERATOR_TOKEN`, is idempotent only for identical evidence,
   and does not authorize alert delivery or any external action.
+- the outbox deduplicates each active incident generation, refuses resolved incidents,
+  preserves an exact payload hash, leaves mismatched approvals unconsumed, and rejects
+  every receipt that claims live mode or network use.
 
 ## Continuous verification
 
