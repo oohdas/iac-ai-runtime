@@ -71,8 +71,14 @@ python3 scripts/status.py
 python3 scripts/worker.py --once
 python3 scripts/healthcheck.py --database sean-os-local.db
 python3 scripts/recovery_drill.py
+python3 scripts/verify_release.py
 SEAN_OS_INTERFACE_TOKEN='<32+ random characters>' python3 scripts/interface.py
 ```
+
+`scripts/verify_release.py` is the canonical fail-closed release gate. The included
+GitHub Actions workflow runs it and builds the production container on every push
+and pull request. It has read-only repository permissions and contains no deployment,
+secret access, live connector, or external-action step.
 
 See [OPERATIONS.md](OPERATIONS.md) for health, shutdown, recovery, and production-readiness procedures.
 See [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) for the explicit production gate.

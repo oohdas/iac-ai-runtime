@@ -50,6 +50,7 @@ python3 -m unittest discover -s tests -v
 python3 scripts/status.py
 python3 scripts/healthcheck.py --database sean-os-local.db
 python3 scripts/recovery_drill.py
+python3 scripts/verify_release.py
 ```
 
 Expected evidence:
@@ -58,6 +59,25 @@ Expected evidence:
 - database integrity is `ok`;
 - foreign-key violations are empty;
 - no real data or production deployment is reported.
+
+## Continuous verification
+
+The repository includes `.github/workflows/verify.yml`. It runs on pushes, pull
+requests, and manual dispatch with `contents: read` only. The workflow:
+
+1. verifies the versioned ownership-bridge schema hash;
+2. compiles the runtime and tests;
+3. runs the complete unit/integration suite;
+4. performs a backup/restore recovery drill; and
+5. builds the production container without publishing or deploying it.
+
+Any failure blocks the verification job. Deployment remains a separate,
+explicitly approved production action.
+
+The local release gate also asserts that the container remains non-root, uses
+an explicit persistent data volume, and that the workflow cannot publish an
+image or deploy. A local Docker build is optional; the clean GitHub runner is
+the canonical container-build check.
 
 ## Start a local worker
 
