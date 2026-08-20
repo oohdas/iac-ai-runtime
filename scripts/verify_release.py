@@ -33,12 +33,22 @@ def main() -> int:
         "SEAN_OS_DATABASE=/data/sean-os.db",
         "mkdir -p /data",
         "chown sean-os:sean-os /data",
-        "USER sean-os",
+        'CMD ["python", "scripts/container_entrypoint.py"]',
     )
     if any(invariant not in dockerfile for invariant in required_container_invariants):
         raise SystemExit("container must run non-root with a writable /data mount point")
     if 'VOLUME ["/data"]' in dockerfile:
         raise SystemExit("Railway volumes must be attached by the platform, not declared in Dockerfile")
+    entrypoint = (ROOT / "scripts" / "container_entrypoint.py").read_text(encoding="utf-8")
+    required_privilege_drop = (
+        "os.chown(database.parent, WORKER_UID, WORKER_GID)",
+        "os.setgroups([])",
+        "os.setgid(WORKER_GID)",
+        "os.setuid(WORKER_UID)",
+        '"scripts/worker.py"',
+    )
+    if any(invariant not in entrypoint for invariant in required_privilege_drop):
+        raise SystemExit("container entrypoint must prepare /data and drop privileges before worker startup")
     checks.append({"check": "container_safety_invariants", "passed": True})
     workflow = (ROOT / ".github/workflows/verify.yml").read_text(encoding="utf-8")
     if "contents: read" not in workflow or "docker build" not in workflow:
