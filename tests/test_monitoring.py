@@ -1,5 +1,6 @@
 import unittest
 import tempfile
+import sqlite3
 from pathlib import Path
 
 from sean_os import (
@@ -370,6 +371,7 @@ class MonitoringTests(unittest.TestCase):
                     store.record_synthetic_alert_delivery(
                         monitor, staged["delivery_id"],
                         {"mode":"SYNTHETIC", "network_used":False,
+                         "external_effect":False,
                          "delivery_id":staged["delivery_id"],
                          "payload_sha256":staged["payload_sha256"]},
                     )
@@ -543,6 +545,145 @@ class MonitoringTests(unittest.TestCase):
             )
         finally:
             store.close()
+
+    def test_synthetic_delivery_leases_recover_and_retries_are_bounded(self):
+        store=SeanOSStore(":memory:")
+        try:
+            worker=Actor("delivery-worker", frozenset({"IAC"}))
+            plan=plan_alert_deliveries(
+                [{"code":"DEAD_LETTER", "severity":"CRITICAL", "summary":"failed"}],
+                route=EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias"),
+                owner_scope="IAC",
+            )[0]
+            store.record_alert_observation(worker, plan)
+            delivery=store.stage_alert_delivery(worker, plan["plan_id"])
+            approval=store.create_approval(
+                Actor.sean(), action_type="DELIVER_ALERT", target=delivery["delivery_id"],
+                scope="IAC", max_impact="one synthetic alert", approver="sean",
+                expires_at="2099-01-01T00:00:00+00:00",
+            )
+            store.authorize_alert_delivery(
+                Actor.sean(), delivery["delivery_id"], approval_id=approval
+            )
+            first=store.claim_authorized_alert_delivery(worker, "worker-1", lease_seconds=1)
+            self.assertEqual(first["attempt_count"], 1)
+            self.assertIsNone(store.claim_authorized_alert_delivery(worker, "worker-2"))
+            store.connection.execute(
+                "UPDATE alert_delivery_outbox SET lease_expires_at=? WHERE delivery_id=?",
+                ("2000-01-01T00:00:00+00:00", delivery["delivery_id"]),
+            )
+            store.connection.commit()
+            recovered=store.claim_authorized_alert_delivery(worker, "worker-2")
+            self.assertEqual(recovered["attempt_count"], 2)
+            receipt=synthetic_delivery_receipt(
+                recovered, delivered_at="2030-01-01T00:00:00+00:00"
+            )
+            with self.assertRaisesRegex(AuthorizationError, "active alert delivery lease"):
+                store.complete_claimed_synthetic_alert_delivery(
+                    worker, delivery["delivery_id"], "worker-1", receipt
+                )
+            completed=store.complete_claimed_synthetic_alert_delivery(
+                worker, delivery["delivery_id"], "worker-2", receipt
+            )
+            self.assertEqual(completed["status"], "SYNTHETIC_DELIVERED")
+            self.assertIsNone(completed["lease_owner"])
+
+            retry_plan=plan_alert_deliveries(
+                [{"code":"POLICY_BLOCKED", "severity":"HIGH", "summary":"blocked"}],
+                route=EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias"),
+                owner_scope="IAC",
+            )[0]
+            store.record_alert_observation(worker, retry_plan)
+            retry=store.stage_alert_delivery(worker, retry_plan["plan_id"])
+            retry_approval=store.create_approval(
+                Actor.sean(), action_type="DELIVER_ALERT", target=retry["delivery_id"],
+                scope="IAC", max_impact="one synthetic alert", approver="sean",
+                expires_at="2099-01-01T00:00:00+00:00",
+            )
+            store.authorize_alert_delivery(
+                Actor.sean(), retry["delivery_id"], approval_id=retry_approval
+            )
+            for attempt in range(1, 4):
+                claimed=store.claim_authorized_alert_delivery(worker, "worker-3")
+                self.assertEqual(claimed["attempt_count"], attempt)
+                next_status=store.fail_claimed_alert_delivery(
+                    worker, retry["delivery_id"], "worker-3", "Synthetic adapter fault",
+                    retry_seconds=0,
+                )
+            self.assertEqual(next_status, "FAILED")
+            health=store.runtime_health(scope="IAC")
+            self.assertFalse(health["healthy"])
+            self.assertEqual(health["delivery_outbox"]["FAILED"], 1)
+            codes={item["code"] for item in classify_alerts(health)}
+            self.assertIn("ALERT_DELIVERY_FAILED", codes)
+        finally:
+            store.close()
+
+    def test_kill_switch_blocks_synthetic_delivery_claims(self):
+        store=SeanOSStore(":memory:")
+        try:
+            worker=Actor("delivery-worker", frozenset({"IAC"}))
+            store.set_kill_switch(Actor.sean(), True)
+            self.assertIsNone(store.claim_authorized_alert_delivery(worker, "worker-1"))
+            denied=[event for event in store.audit_events()
+                    if event["action"] == "CLAIM_ALERT_DELIVERY" and event["result"] == "DENIED"]
+            self.assertTrue(denied)
+        finally:
+            store.close()
+
+    def test_schema_v10_outbox_migrates_without_losing_staged_delivery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database=Path(directory) / "migration.db"
+            store=SeanOSStore(database)
+            try:
+                actor=Actor("monitor", frozenset({"IAC"}))
+                plan=plan_alert_deliveries(
+                    [{"code":"DEAD_LETTER", "severity":"CRITICAL", "summary":"failed"}],
+                    route=EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias"),
+                    owner_scope="IAC",
+                )[0]
+                store.record_alert_observation(actor, plan)
+                delivery=store.stage_alert_delivery(actor, plan["plan_id"])
+            finally:
+                store.close()
+            connection=sqlite3.connect(database)
+            connection.execute("PRAGMA foreign_keys=OFF")
+            connection.execute("ALTER TABLE alert_delivery_outbox RENAME TO outbox_v11")
+            connection.execute(
+                """CREATE TABLE alert_delivery_outbox (
+                    delivery_id TEXT PRIMARY KEY, plan_id TEXT NOT NULL,
+                    incident_id TEXT NOT NULL, reopen_generation INTEGER NOT NULL,
+                    owner_scope TEXT NOT NULL, route_id TEXT NOT NULL,
+                    destination_kind TEXT NOT NULL, destination_ref TEXT NOT NULL,
+                    alert_payload TEXT NOT NULL, payload_sha256 TEXT NOT NULL,
+                    status TEXT NOT NULL, approval_id TEXT, attempt_count INTEGER NOT NULL,
+                    receipt_payload TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                    delivered_at TEXT, UNIQUE(incident_id, reopen_generation))"""
+            )
+            legacy_columns=(
+                "delivery_id,plan_id,incident_id,reopen_generation,owner_scope,route_id,"
+                "destination_kind,destination_ref,alert_payload,payload_sha256,status,"
+                "approval_id,attempt_count,receipt_payload,created_at,updated_at,delivered_at"
+            )
+            connection.execute(
+                f"INSERT INTO alert_delivery_outbox ({legacy_columns}) SELECT {legacy_columns} FROM outbox_v11"
+            )
+            connection.execute("DROP TABLE outbox_v11")
+            connection.execute("DELETE FROM schema_migrations WHERE version=11")
+            connection.commit(); connection.close()
+
+            migrated=SeanOSStore(database)
+            try:
+                restored=migrated.get_alert_delivery(
+                    Actor("auditor", frozenset({"IAC"})), delivery["delivery_id"]
+                )
+                self.assertEqual(migrated.schema_version, 11)
+                self.assertEqual(restored["status"], "STAGED")
+                self.assertEqual(restored["max_attempts"], 3)
+                self.assertEqual(restored["available_at"], restored["created_at"])
+                self.assertIn("lease_owner", restored)
+            finally:
+                migrated.close()
 
     def test_monitor_snapshot_can_record_without_delivering(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -59,6 +59,12 @@ The continuous runtime is implemented and verified locally. It is not yet a 24/7
 43. The primary interface separates safe staging/request operations from Sean's
     decision/authorization operations. A crash between decision and authorization
     leaves durable `APPROVED` evidence and does not repeat or silently consume it.
+44. Synthetic outbox processing is default-off and may run only inside the existing
+    single worker under exact `SYNTHETIC_ONLY` configuration. Claims are leased,
+    crash-recoverable, bounded to three attempts by default, and kill-switch aware.
+45. Exhausted synthetic delivery becomes `FAILED`, makes scoped runtime health
+    unhealthy, and emits a local `ALERT_DELIVERY_FAILED` classification; it never
+    falls through to a live adapter, network call, or external effect.
 
 ## Local verification
 
@@ -113,7 +119,7 @@ Expected evidence:
 - identical alert plans receive deterministic IDs, repeats can be suppressed across
   runs, and acknowledgements produce hashed, timezone-aware local evidence while
   keeping `delivery_authorized=false`.
-- schema v10 durably stores PERSONAL or IAC alert observations, counts identical
+- schema v11 durably stores PERSONAL or IAC alert observations, counts identical
   occurrences, scope-filters reads, and permits one immutable Sean-only local
   acknowledgement; it also maintains resolvable/reopenable incidents without adding
   a delivery capability.
@@ -128,6 +134,11 @@ Expected evidence:
 - the in-memory HTTP contract test proves the ordinary interface credential receives
   `403` at the operator decision route, while the operator credential can decide and
   separately authorize the exact staged delivery; no socket or external service is used.
+- a schema-v10 fixture migrates to v11 without losing its staged delivery; the new
+  lease, retry, and availability fields are initialized deterministically.
+- an isolated worker-process test consumes an exactly approved outbox item only when
+  `--synthetic-delivery` is explicit and records a receipt proving both
+  `network_used=false` and `external_effect=false`.
 
 ## Continuous verification
 
@@ -155,6 +166,19 @@ python3 scripts/worker.py --database sean-os-local.db
 ```
 
 The process polls the durable queue, emits heartbeats, leases work, evaluates its registered action policy, settles reserved cost, retries bounded runtime failures, and exits cleanly on `SIGINT` or `SIGTERM`. Policy denials do not retry: they move to `APPROVAL_BLOCKED` or `POLICY_BLOCKED`.
+
+Authorized synthetic alert receipts may be processed by that same worker only with:
+
+```bash
+python3 scripts/worker.py --database sean-os-local.db --synthetic-delivery
+```
+
+The equivalent container contract is
+`SEAN_OS_ALERT_DELIVERY_MODE=SYNTHETIC_ONLY`; the entrypoint rejects every other
+configured value.
+
+This mode has no delivery library, socket call, webhook client, email client, or live
+destination adapter. Any other configured mode aborts startup.
 
 Monitoring may be integrated into that same process without adding a service or
 replica. It remains disabled unless all three route arguments are supplied:

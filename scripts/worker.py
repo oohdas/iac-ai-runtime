@@ -5,11 +5,12 @@ import json
 import signal
 import sys
 import time
+from datetime import datetime, timezone
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sean_os import (
     Actor, EscalationRoute, LocalScheduler, PolicyDenied, RuntimeMonitor,
-    SeanOSStore, chief_of_staff_registry,
+    SeanOSStore, chief_of_staff_registry, synthetic_delivery_receipt,
 )
 
 
@@ -21,6 +22,27 @@ def stop(*_args):
     STOP = True
 
 
+def process_synthetic_delivery_once(
+    store: SeanOSStore, actor: Actor, worker_id: str
+):
+    delivery=store.claim_authorized_alert_delivery(actor, worker_id, lease_seconds=30)
+    if delivery is None:
+        return None
+    try:
+        receipt=synthetic_delivery_receipt(
+            delivery, delivered_at=datetime.now(timezone.utc).isoformat()
+        )
+        return store.complete_claimed_synthetic_alert_delivery(
+            actor, delivery["delivery_id"], worker_id, receipt
+        )
+    except Exception as exc:
+        safe_error=f"{type(exc).__name__}: synthetic no-network adapter failed"
+        store.fail_claimed_alert_delivery(
+            actor, delivery["delivery_id"], worker_id, safe_error
+        )
+        return {"delivery_id":delivery["delivery_id"], "status":"RETRY_SCHEDULED"}
+
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--database", default="sean-os-local.db")
@@ -30,6 +52,7 @@ def main():
     parser.add_argument("--monitor-destination-kind", choices=("EMAIL", "WEBHOOK"))
     parser.add_argument("--monitor-destination-ref")
     parser.add_argument("--monitor-interval-seconds", type=float, default=30.0)
+    parser.add_argument("--synthetic-delivery", action="store_true")
     parser.add_argument("--once", action="store_true")
     args=parser.parse_args()
     route_fields=(args.monitor_route_id, args.monitor_destination_kind,
@@ -59,6 +82,8 @@ def main():
                 if snapshot is not None:
                     print(json.dumps(snapshot, sort_keys=True), flush=True)
             scheduler.tick()
+            if args.synthetic_delivery:
+                process_synthetic_delivery_once(store, actor, args.worker_id)
             work=store.claim_work(actor, args.worker_id, lease_seconds=30)
             if work is None:
                 if args.once: break

@@ -5,23 +5,23 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 17:25 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 17:29 EDT
-- Milestone selected: primary operator workflow for alert delivery
+- Last continuous-goal checkpoint started: 2026-08-20 17:30 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 17:34 EDT
+- Milestone selected: restart-safe synthetic outbox processing
 - Run state: Completed; scheduled builder paused and continuous goal active
-- Last meaningful milestone: restart-safe primary operator workflow for alert delivery
+- Last meaningful milestone: leased, retry-bounded synthetic delivery in the single worker
 - Deployed commit: `1aa8762`
 - Runtime: Online, private, one replica, persistent volume attached
-- Concrete changes: added scoped outbox review/staging, idempotent bounded approval
-  requests, separately authenticated decision/authorization routes, expiry handling,
-  secret rejection, exact-delivery tamper protection, and in-memory HTTP contract proof
-- Verification: 110 tests passed; schema-v10 release and recovery gates passed
+- Concrete changes: added schema-v11 lease/retry fields and preservation migration;
+  atomic crash recovery; three-attempt terminal failure; kill-switch enforcement;
+  health escalation; exact default-off container mode; and isolated process proof
+- Verification: 115 tests passed; schema-v11 release and recovery gates passed
 - Real data connected: No
 - Live integrations enabled: No
 - Current blocker: executing the production drill or delivering an alert requires
   Sean's separate exact approval; neither is needed for continued local development
-- Next milestone: add restart-safe worker processing for authorized synthetic outbox
-  items, with bounded claims and retries; retain an absolute no-network/live-mode gate
+- Next milestone: add delivery backlog/lease diagnostics and recovery controls to the
+  operator interface and reports without granting manual execution authority
 - Sean action required: No
 
 ## Recent verified milestones
@@ -57,6 +57,8 @@ Every automation run updates it, even when no notification is sent.
     exact scope-matched approval, and accepts only deterministic no-network receipts.
 18. The primary interface now reviews/stages deliveries, requests bounded approval,
     and keeps Sean's decision and exact authorization as separate recoverable steps.
+19. Schema v11 adds default-off leased synthetic processing to the existing worker,
+    bounded crash recovery/retries, kill-switch enforcement, and terminal health alerts.
 
 ## Update contract
 

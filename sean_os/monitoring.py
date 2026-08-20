@@ -88,6 +88,8 @@ def classify_alerts(
 
     if int(health.get("active_worker_count", 0)) == 0:
         add("NO_ACTIVE_WORKER", "CRITICAL", "No active runtime worker is reporting")
+    if int(health.get("delivery_outbox", {}).get("FAILED", 0)):
+        add("ALERT_DELIVERY_FAILED", "CRITICAL", "Synthetic alert delivery exhausted retries")
     if backup_ok is False:
         add("BACKUP_FAILED", "CRITICAL", "Latest verified backup failed")
 

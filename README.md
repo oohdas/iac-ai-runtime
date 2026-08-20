@@ -51,10 +51,12 @@ This build intentionally uses Python's standard library and SQLite so it can be 
 - Recursive secret-pattern rejection on record create/update and fail-closed sale-export scanning
 - Scoped ChatGPT-interface create, retrieve, list, update, and link operations across IAC core records
 - Scope-filtered audit retrieval that prevents PERSONAL audit disclosure to the IAC interface
-- Schema-v10 durable alert-delivery outbox keyed by incident generation, with exact
+- Schema-v11 durable alert-delivery outbox keyed by incident generation, with exact
   scope-matched approval and a deterministic no-network synthetic adapter
 - Primary-interface outbox review and restart-safe stage/request/decide/authorize
   flow with ordinary IAC and Sean-operator credentials kept separate
+- Default-off single-worker synthetic outbox processing with durable leases, crash
+  recovery, bounded retry exhaustion, kill-switch enforcement, and failed-work health
 - Chief of Staff portfolio scoring, capacity allocation, low-fit challenge, and safe agent-only pausing
 - Revenue comparison across outbound, existing/inactive customers, quotes, inbound, and new channels
 - Capacity-adjusted expected return using margin, probability, cost, Sean time, strategic fit, and evidence

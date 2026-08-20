@@ -24,6 +24,15 @@ class ContainerEntrypointTests(unittest.TestCase):
         self.assertIn("--monitor-route-id", arguments)
         self.assertIn("30.0", arguments)
 
+    def test_synthetic_delivery_requires_exact_no_network_mode(self):
+        arguments=worker_arguments({
+            "SEAN_OS_DATABASE":"/data/iac-ai.db",
+            "SEAN_OS_ALERT_DELIVERY_MODE":"SYNTHETIC_ONLY",
+        })
+        self.assertIn("--synthetic-delivery", arguments)
+        with self.assertRaisesRegex(ValueError, "SYNTHETIC_ONLY"):
+            worker_arguments({"SEAN_OS_ALERT_DELIVERY_MODE":"LIVE"})
+
     def test_partial_environment_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "complete route contract"):
             worker_arguments({"SEAN_OS_MONITOR_ROUTE_ID": "iac-operator"})

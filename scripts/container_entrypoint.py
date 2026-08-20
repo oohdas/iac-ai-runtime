@@ -28,26 +28,30 @@ def worker_arguments(environment: Mapping[str, str]) -> list[str]:
     destination_ref = environment.get("SEAN_OS_MONITOR_DESTINATION_REF")
     interval = environment.get("SEAN_OS_MONITOR_INTERVAL_SECONDS")
     route_fields = (route_id, destination_kind, destination_ref)
-    if not any(route_fields) and interval is None:
-        return arguments
-    if not all(route_fields):
-        raise ValueError("Monitoring environment requires a complete route contract")
-    if destination_kind not in {"EMAIL", "WEBHOOK"}:
-        raise ValueError("Unsupported monitoring destination kind")
-    try:
-        interval_value = float(interval) if interval is not None else 30.0
-    except ValueError as exc:
-        raise ValueError("Monitoring interval must be numeric") from exc
-    if not math.isfinite(interval_value) or interval_value < 1:
-        raise ValueError("Monitoring interval must be finite and at least one second")
-    arguments.extend(
-        [
-            "--monitor-route-id", _safe_reference("route ID", route_id),
-            "--monitor-destination-kind", destination_kind,
-            "--monitor-destination-ref", _safe_reference("destination ref", destination_ref),
-            "--monitor-interval-seconds", str(interval_value),
-        ]
-    )
+    if any(route_fields) or interval is not None:
+        if not all(route_fields):
+            raise ValueError("Monitoring environment requires a complete route contract")
+        if destination_kind not in {"EMAIL", "WEBHOOK"}:
+            raise ValueError("Unsupported monitoring destination kind")
+        try:
+            interval_value = float(interval) if interval is not None else 30.0
+        except ValueError as exc:
+            raise ValueError("Monitoring interval must be numeric") from exc
+        if not math.isfinite(interval_value) or interval_value < 1:
+            raise ValueError("Monitoring interval must be finite and at least one second")
+        arguments.extend(
+            [
+                "--monitor-route-id", _safe_reference("route ID", route_id),
+                "--monitor-destination-kind", destination_kind,
+                "--monitor-destination-ref", _safe_reference("destination ref", destination_ref),
+                "--monitor-interval-seconds", str(interval_value),
+            ]
+        )
+    delivery_mode=environment.get("SEAN_OS_ALERT_DELIVERY_MODE")
+    if delivery_mode is not None:
+        if delivery_mode != "SYNTHETIC_ONLY":
+            raise ValueError("Alert delivery mode must be SYNTHETIC_ONLY when configured")
+        arguments.append("--synthetic-delivery")
     return arguments
 
 

@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 
-LATEST_SCHEMA_VERSION = 10
+LATEST_SCHEMA_VERSION = 11
 
 
 def _stamp() -> str:
@@ -75,6 +75,14 @@ def _upgrade_work_queue(connection: sqlite3.Connection) -> None:
         connection.execute("PRAGMA foreign_keys = ON")
 
 
+def _add_column_if_missing(
+    connection: sqlite3.Connection, table: str, column: str, definition: str
+) -> None:
+    columns={row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
+    if column not in columns:
+        connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 def apply_migrations(connection: sqlite3.Connection) -> int:
     """Apply ordered, restart-safe migrations and return the current version."""
     versions={row[0] for row in connection.execute("SELECT version FROM schema_migrations")}
@@ -113,6 +121,22 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
     if 10 not in versions:
         # v10 approval-gated alert delivery outbox is additive and created by schema.sql.
         _record(connection, 10)
+    if 11 not in versions:
+        _add_column_if_missing(connection, "alert_delivery_outbox", "max_attempts",
+                               "INTEGER NOT NULL DEFAULT 3 CHECK (max_attempts BETWEEN 1 AND 10)")
+        _add_column_if_missing(connection, "alert_delivery_outbox", "available_at", "TEXT")
+        _add_column_if_missing(connection, "alert_delivery_outbox", "lease_owner", "TEXT")
+        _add_column_if_missing(connection, "alert_delivery_outbox", "lease_expires_at", "TEXT")
+        _add_column_if_missing(connection, "alert_delivery_outbox", "last_error", "TEXT")
+        connection.execute(
+            "UPDATE alert_delivery_outbox SET available_at=created_at WHERE available_at IS NULL"
+        )
+        connection.execute(
+            """CREATE INDEX IF NOT EXISTS idx_alert_delivery_outbox_claim
+               ON alert_delivery_outbox(status, available_at, lease_expires_at, created_at)"""
+        )
+        connection.commit()
+        _record(connection, 11)
     version=connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
     if version != LATEST_SCHEMA_VERSION:
         raise sqlite3.DatabaseError(

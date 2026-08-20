@@ -440,11 +440,12 @@ class SeanOSStore:
             """INSERT OR IGNORE INTO alert_delivery_outbox
                (delivery_id, plan_id, incident_id, reopen_generation, owner_scope,
                 route_id, destination_kind, destination_ref, alert_payload,
-                payload_sha256, status, created_at, updated_at)
-               VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'STAGED', ?, ?)""",
+                payload_sha256, status, available_at, created_at, updated_at)
+               VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'STAGED', ?, ?, ?)""",
             (delivery_id, plan_id, incident_id, generation, scope,
              observation["route_id"], route.get("destination_kind"),
-             route.get("destination_ref"), alert_payload, payload_sha256, stamp, stamp),
+             route.get("destination_ref"), alert_payload, payload_sha256,
+             stamp, stamp, stamp),
         )
         self.connection.commit()
         row=self.get_alert_delivery(actor, delivery_id)
@@ -560,6 +561,8 @@ class SeanOSStore:
         self._authorize(actor, row["owner_scope"], (), "write")
         if receipt.get("mode") != "SYNTHETIC" or receipt.get("network_used") is not False:
             raise ValidationError("Only no-network synthetic delivery receipts are accepted")
+        if receipt.get("external_effect") is not False:
+            raise ValidationError("Synthetic delivery receipt must prove no external effect")
         if receipt.get("delivery_id") != delivery_id or receipt.get("payload_sha256") != row["payload_sha256"]:
             raise ValidationError("Synthetic delivery receipt does not match staged payload")
         payload=json.dumps(receipt, sort_keys=True, separators=(",", ":"))
@@ -581,6 +584,136 @@ class SeanOSStore:
                     "No-network synthetic adapter completed", delivery_id,
                     {"scope":row["owner_scope"], "network_used":False})
         return self.get_alert_delivery(actor, delivery_id)
+
+    def claim_authorized_alert_delivery(
+        self, actor: Actor, worker_id: str, *, lease_seconds: int = 30
+    ) -> dict[str, Any] | None:
+        if not worker_id.strip():
+            raise ValidationError("Alert delivery worker ID is required")
+        if lease_seconds < 1 or lease_seconds > 300:
+            raise ValidationError("Alert delivery lease must be between 1 and 300 seconds")
+        if self.kill_switch_enabled():
+            self._audit(actor, "CLAIM_ALERT_DELIVERY", "DENIED", "Kill switch is ON")
+            return None
+        allowed_scopes=sorted(actor.scopes & self.allowed_scopes & {"PERSONAL", "IAC"})
+        if not allowed_scopes:
+            self._audit(actor, "CLAIM_ALERT_DELIVERY", "DENIED",
+                        "Worker has no authorized delivery scope")
+            return None
+        stamp=now()
+        lease=(datetime.now(timezone.utc)+timedelta(seconds=lease_seconds)).isoformat()
+        placeholders=",".join("?" for _ in allowed_scopes)
+        self.connection.execute("BEGIN IMMEDIATE")
+        self.connection.execute(
+            f"""UPDATE alert_delivery_outbox SET status='FAILED',
+                   last_error='Lease expired after maximum attempts', updated_at=?,
+                   lease_owner=NULL, lease_expires_at=NULL
+                   WHERE status='AUTHORIZED' AND attempt_count>=max_attempts
+                   AND (lease_owner IS NULL OR lease_expires_at<=?)
+                   AND owner_scope IN ({placeholders})""",
+            (stamp, stamp, *allowed_scopes),
+        )
+        row=self.connection.execute(
+            f"""SELECT delivery_id FROM alert_delivery_outbox
+                WHERE status='AUTHORIZED' AND available_at<=?
+                AND attempt_count<max_attempts
+                AND (lease_owner IS NULL OR lease_expires_at<=?)
+                AND owner_scope IN ({placeholders})
+                ORDER BY created_at, delivery_id LIMIT 1""",
+            (stamp, stamp, *allowed_scopes),
+        ).fetchone()
+        if row is None:
+            self.connection.commit(); return None
+        cursor=self.connection.execute(
+            """UPDATE alert_delivery_outbox SET lease_owner=?, lease_expires_at=?,
+               attempt_count=attempt_count+1, updated_at=?
+               WHERE delivery_id=? AND status='AUTHORIZED'
+               AND (lease_owner IS NULL OR lease_expires_at<=?)""",
+            (worker_id, lease, stamp, row["delivery_id"], stamp),
+        )
+        if cursor.rowcount != 1:
+            self.connection.rollback(); return None
+        self.connection.commit()
+        claimed=self.get_alert_delivery(actor, row["delivery_id"])
+        self._audit(actor, "CLAIM_ALERT_DELIVERY", "ALLOWED",
+                    "Authorized synthetic delivery lease acquired", row["delivery_id"],
+                    {"scope":claimed["owner_scope"], "worker_id":worker_id,
+                     "attempt":claimed["attempt_count"], "network_used":False})
+        return claimed
+
+    def complete_claimed_synthetic_alert_delivery(
+        self, actor: Actor, delivery_id: str, worker_id: str, receipt: dict[str, Any]
+    ) -> dict[str, Any]:
+        if self.kill_switch_enabled():
+            raise AuthorizationError("Kill switch is ON; delivery completion denied")
+        row=self.connection.execute(
+            "SELECT * FROM alert_delivery_outbox WHERE delivery_id=?", (delivery_id,)
+        ).fetchone()
+        if row is None:
+            raise ValidationError("Alert delivery not found")
+        self._authorize(actor, row["owner_scope"], (), "write")
+        if receipt.get("mode") != "SYNTHETIC" or receipt.get("network_used") is not False:
+            raise ValidationError("Only no-network synthetic delivery receipts are accepted")
+        if receipt.get("external_effect") is not False:
+            raise ValidationError("Synthetic delivery receipt must prove no external effect")
+        if receipt.get("delivery_id") != delivery_id or receipt.get("payload_sha256") != row["payload_sha256"]:
+            raise ValidationError("Synthetic delivery receipt does not match staged payload")
+        if secret_findings(receipt):
+            raise ValidationError("Secret-like material is prohibited in delivery receipts")
+        payload=json.dumps(receipt, sort_keys=True, separators=(",", ":"))
+        if row["status"] == "SYNTHETIC_DELIVERED":
+            existing=json.loads(row["receipt_payload"]) if row["receipt_payload"] else None
+            if existing == receipt:
+                return self.get_alert_delivery(actor, delivery_id)
+            raise ValidationError("Alert delivery already has different receipt evidence")
+        cursor=self.connection.execute(
+            """UPDATE alert_delivery_outbox SET status='SYNTHETIC_DELIVERED',
+               receipt_payload=?, delivered_at=?, updated_at=?, lease_owner=NULL,
+               lease_expires_at=NULL, last_error=NULL
+               WHERE delivery_id=? AND status='AUTHORIZED' AND lease_owner=?""",
+            (payload, receipt.get("delivered_at"), now(), delivery_id, worker_id),
+        )
+        if cursor.rowcount != 1:
+            self.connection.rollback()
+            raise AuthorizationError("Worker does not hold the active alert delivery lease")
+        self.connection.commit()
+        self._audit(actor, "COMPLETE_ALERT_DELIVERY", "ALLOWED",
+                    "Leased no-network synthetic delivery completed", delivery_id,
+                    {"scope":row["owner_scope"], "worker_id":worker_id,
+                     "network_used":False, "external_effect":False})
+        return self.get_alert_delivery(actor, delivery_id)
+
+    def fail_claimed_alert_delivery(
+        self, actor: Actor, delivery_id: str, worker_id: str, error: str, *,
+        retry_seconds: int = 5,
+    ) -> str:
+        if not error.strip():
+            raise ValidationError("Alert delivery failure requires an error")
+        if secret_findings({"error":error}):
+            raise ValidationError("Secret-like material is prohibited in delivery failures")
+        if retry_seconds < 0 or retry_seconds > 3600:
+            raise ValidationError("Alert delivery retry must be between 0 and 3600 seconds")
+        row=self.connection.execute(
+            """SELECT owner_scope, attempt_count, max_attempts FROM alert_delivery_outbox
+               WHERE delivery_id=? AND status='AUTHORIZED' AND lease_owner=?""",
+            (delivery_id, worker_id),
+        ).fetchone()
+        if row is None:
+            raise AuthorizationError("Worker does not hold the active alert delivery lease")
+        self._authorize(actor, row["owner_scope"], (), "write")
+        terminal=row["attempt_count"] >= row["max_attempts"]
+        status="FAILED" if terminal else "AUTHORIZED"
+        available=(datetime.now(timezone.utc)+timedelta(seconds=retry_seconds)).isoformat()
+        self.connection.execute(
+            """UPDATE alert_delivery_outbox SET status=?, available_at=?, lease_owner=NULL,
+               lease_expires_at=NULL, last_error=?, updated_at=? WHERE delivery_id=?""",
+            (status, available, error, now(), delivery_id),
+        )
+        self.connection.commit()
+        self._audit(actor, "FAIL_ALERT_DELIVERY", "FAILED", error, delivery_id,
+                    {"scope":row["owner_scope"], "worker_id":worker_id,
+                     "next_status":status, "network_used":False})
+        return status
 
     def transition_project(
         self, actor: Actor, record_id: str, state: str, reason: str, *,
@@ -801,6 +934,14 @@ class SeanOSStore:
         counts={r["status"]: r["count"] for r in self.connection.execute(
             queue_sql, queue_parameters
         )}
+        delivery_sql="SELECT status, COUNT(*) AS count FROM alert_delivery_outbox"
+        delivery_parameters: tuple[Any, ...]=()
+        if scope is not None:
+            delivery_sql += " WHERE owner_scope=?"; delivery_parameters=(scope,)
+        delivery_sql += " GROUP BY status"
+        delivery_counts={r["status"]:r["count"] for r in self.connection.execute(
+            delivery_sql, delivery_parameters
+        )}
         budget_scopes=(scope,) if scope is not None else tuple(sorted(self.allowed_scopes))
         budgets=[self.budget_status(item_scope) for item_scope in budget_scopes]
         integrity=self.integrity_check()
@@ -809,13 +950,16 @@ class SeanOSStore:
                  and not any(w["stale"] for w in workers)
                  and counts.get("DEAD_LETTER", 0) == 0
                  and counts.get("POLICY_BLOCKED", 0) == 0
+                 and delivery_counts.get("FAILED", 0) == 0
                  and (not require_active_worker or bool(active_workers)))
         needs_attention=sum(
             counts.get(status, 0)
             for status in ("APPROVAL_BLOCKED", "BUDGET_BLOCKED", "POLICY_BLOCKED", "DEAD_LETTER")
         )
+        needs_attention += delivery_counts.get("FAILED", 0)
         return {"healthy": healthy, "kill_switch": self.kill_switch_enabled(),
                 "integrity": integrity, "queue": counts, "workers": workers,
+                "delivery_outbox":delivery_counts,
                 "budgets": [b for b in budgets if b is not None],
                 "needs_attention": needs_attention,
                 "active_worker_count": len(active_workers)}
