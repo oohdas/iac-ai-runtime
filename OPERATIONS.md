@@ -55,6 +55,18 @@ python3 scripts/monitor_snapshot.py --database sean-os-local.db
 python3 scripts/verify_release.py
 ```
 
+To persist non-delivering IAC observations in an IAC-profile database, provide
+the complete non-secret route contract explicitly:
+
+```bash
+python3 scripts/monitor_snapshot.py --database iac-ai.db --scope-profile IAC \
+  --record-route-id iac-operator --owner-scope IAC \
+  --destination-kind EMAIL --destination-ref iac-ops-alias
+```
+
+Partial route arguments fail closed. This records deduplicated local evidence
+only and cannot send a message.
+
 Expected evidence:
 
 - all tests pass;

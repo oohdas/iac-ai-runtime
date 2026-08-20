@@ -7,6 +7,7 @@ from sean_os import (
     acknowledge_alert_plan, classify_alerts,
     deduplicate_alert_plans, plan_alert_deliveries,
 )
+from scripts.monitor_snapshot import build_snapshot
 
 
 class MonitoringTests(unittest.TestCase):
@@ -169,6 +170,20 @@ class MonitoringTests(unittest.TestCase):
                 changed = dict(receipt); changed["acknowledged_at"] = "2030-01-01T12:01:00+00:00"
                 with self.assertRaisesRegex(ValidationError, "already acknowledged"):
                     store.acknowledge_alert_observation(Actor.sean(), changed)
+            finally:
+                store.close()
+
+    def test_monitor_snapshot_can_record_without_delivering(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SeanOSStore(Path(directory) / "monitor.db", scope_profile="IAC")
+            try:
+                route = EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias")
+                first = build_snapshot(store, backup_ok=False, route=route)
+                second = build_snapshot(store, backup_ok=False, route=route)
+                self.assertFalse(first["delivery_authorized"])
+                self.assertTrue(first["recorded_observations"])
+                counts = {item["plan_id"]: item["occurrence_count"] for item in second["recorded_observations"]}
+                self.assertTrue(all(count == 2 for count in counts.values()))
             finally:
                 store.close()
 
