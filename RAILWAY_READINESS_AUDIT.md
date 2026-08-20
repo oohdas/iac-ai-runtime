@@ -24,6 +24,10 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
 - Commit `59c89a4` deployed successfully on 2026-08-20 and Railway reported the
   service Online. The worker successfully opened the volume-backed database
   after its entrypoint prepared `/data` and dropped to uid/gid 10001.
+- A controlled restart on 2026-08-20 returned the same deployment Online and
+  Railway remounted the same persistent volume before container startup.
+- The Railway GitHub App is restricted to `oohdas/iac-ai-runtime`; production
+  tracks `main` and automatic deployments on approved pushes are enabled.
 
 ## Required pre-deployment controls
 
@@ -34,8 +38,9 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
 5. [x] Set `SEAN_OS_DATABASE=/data/iac-ai.db`.
 6. [x] Keep the worker unexposed with no public domain.
 7. [x] Verify successful startup against the volume-backed IAC database.
-8. [ ] Verify runtime uid, restart persistence, kill switch, production backup,
-   isolated restore, and alert delivery before broader production approval.
+8. [ ] Verify runtime uid, production kill switch, production backup, isolated
+   restore, and alert delivery before broader production approval. Restart and
+   volume-remount persistence have been verified.
 9. [ ] Create `SEAN_OS_INTERFACE_TOKEN` only if a separate authenticated
    interface service is approved; the private worker pilot does not require it.
 
@@ -47,7 +52,7 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
 - ShopVox, QuickBooks Online, QNAP, or RBC access
 - customer contact or external-record mutations
 - model/API spending
-- automatic production deployment from GitHub Actions
+- deployment bypassing the connected Railway `main` source and release gates
 
 ## Approval boundary
 

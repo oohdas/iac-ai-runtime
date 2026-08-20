@@ -50,6 +50,7 @@ python3 -m unittest discover -s tests -v
 python3 scripts/status.py
 python3 scripts/healthcheck.py --database sean-os-local.db
 python3 scripts/recovery_drill.py
+python3 scripts/kill_switch_drill.py
 python3 scripts/verify_release.py
 ```
 
@@ -59,6 +60,7 @@ Expected evidence:
 - database integrity is `ok`;
 - foreign-key violations are empty;
 - no real data or production deployment is reported.
+- the isolated kill-switch drill blocks work, records audit evidence, and recovers.
 
 ## Continuous verification
 
