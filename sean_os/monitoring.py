@@ -205,7 +205,13 @@ def capture_monitor_snapshot(
         "delivery_authorized": False,
         "alerts": alerts,
         "recorded_observations": [
-            {"plan_id": item["plan_id"], "occurrence_count": item["occurrence_count"]}
+            {
+                "plan_id": item["plan_id"],
+                "occurrence_count": item["occurrence_count"],
+                "incident_id": item["incident"]["incident_id"],
+                "incident_status": item["incident"]["status"],
+                "reopen_count": item["incident"]["reopen_count"],
+            }
             for item in observations
         ],
         "health": health,

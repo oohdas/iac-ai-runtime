@@ -5,22 +5,22 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 17:15 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 17:18 EDT
-- Milestone selected: fail-closed monitoring environment contract
+- Last continuous-goal checkpoint started: 2026-08-20 17:19 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 17:23 EDT
+- Milestone selected: durable incident resolution and reopen lifecycle
 - Run state: Completed; scheduled builder paused and continuous goal active
-- Last meaningful milestone: container monitoring configuration verified fail-closed and default-off
+- Last meaningful milestone: schema-v9 alert incident resolution and reopen lifecycle verified
 - Deployed commit: `1aa8762`
 - Runtime: Online, private, one replica, persistent volume attached
-- Concrete changes: added pure environment translation, all-or-none route validation,
-  bounded numeric cadence checks, control-character rejection, entrypoint wiring, tests, and docs
-- Verification: 95 tests passed; schema-v8 release, recovery, and synthetic kill-switch drills passed
+- Concrete changes: added durable incidents keyed by scope/route/class, Sean-only
+  resolution, recurring-condition reopen behavior, active-incident queries, tests, and docs
+- Verification: 98 tests passed; schema-v9 release, recovery, and synthetic kill-switch drills passed
 - Real data connected: No
 - Live integrations enabled: No
 - Current blocker: executing the production drill or delivering an alert requires
   Sean's separate exact approval; neither is needed for continued local development
-- Next milestone: add durable alert resolution and reopen semantics so monitoring
-  distinguishes active incidents from historical observations
+- Next milestone: include active monitoring incidents in daily/weekly operational reports
+  without adding notification or delivery authority
 - Sean action required: No
 
 ## Recent verified milestones
@@ -46,6 +46,8 @@ Every automation run updates it, even when no notification is sent.
     process; default startup remains unchanged and complete-contract tests prove no delivery.
 13. The container accepts a default-off monitoring environment contract that aborts
     startup on partial, malformed, unsafe, or unbounded values; Railway is unchanged.
+14. Schema v9 groups observations into durable scoped incidents, supports Sean-only
+    resolution, and reopens recurring conditions without losing historical evidence.
 
 ## Update contract
 

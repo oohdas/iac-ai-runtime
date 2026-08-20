@@ -46,6 +46,8 @@ The continuous runtime is implemented and verified locally. It is not yet a 24/7
     ownership, and has no network or delivery adapter.
 38. Integrated worker monitoring is disabled by default, runs within the existing
     single worker when explicitly configured, and cannot create another replica.
+39. Alert incidents are keyed by scope, route, and alert class; only Sean can
+    resolve them, and a recurring condition automatically reopens the same incident.
 
 ## Local verification
 
@@ -100,9 +102,10 @@ Expected evidence:
 - identical alert plans receive deterministic IDs, repeats can be suppressed across
   runs, and acknowledgements produce hashed, timezone-aware local evidence while
   keeping `delivery_authorized=false`.
-- schema v8 durably stores PERSONAL or IAC alert observations, counts identical
+- schema v9 durably stores PERSONAL or IAC alert observations, counts identical
   occurrences, scope-filters reads, and permits one immutable Sean-only local
-  acknowledgement; these records do not add a delivery capability.
+  acknowledgement; it also maintains resolvable/reopenable incidents without adding
+  a delivery capability.
 
 ## Continuous verification
 
@@ -157,6 +160,24 @@ The first three variables are all-or-none. An interval without a route, partial
 route, unsupported kind, non-finite interval, or control character aborts startup.
 No monitoring variable is currently configured in Railway, and this document
 does not authorize adding one.
+
+## Alert incident lifecycle
+
+Each observation updates one durable incident identified by owner scope, route,
+and alert code. Changing queue counts or summary text updates that incident rather
+than creating operational noise. Sean may resolve an active incident only after
+the underlying condition and recovery evidence have been reviewed:
+
+```python
+store.resolve_alert_incident(
+    Actor.sean(), incident_id, reason="Recovery evidence reviewed"
+)
+```
+
+Resolution never deletes observations or acknowledgement evidence. If the same
+condition is observed again, the incident returns to `ACTIVE`, clears its former
+resolution fields, and increments `reopen_count`. PERSONAL/IAC reads remain
+scope-filtered, and resolution reasons reject secret-like material.
 
 ## Stop all new execution
 

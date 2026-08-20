@@ -249,6 +249,30 @@ CREATE TABLE IF NOT EXISTS alert_observations (
 CREATE INDEX IF NOT EXISTS idx_alert_observations_scope_seen
 ON alert_observations(owner_scope, last_seen_at);
 
+CREATE TABLE IF NOT EXISTS alert_incidents (
+    incident_id TEXT PRIMARY KEY,
+    owner_scope TEXT NOT NULL CHECK (owner_scope IN ('PERSONAL','IAC')),
+    route_id TEXT NOT NULL,
+    alert_code TEXT NOT NULL,
+    severity TEXT NOT NULL CHECK (severity IN ('ATTENTION','HIGH','CRITICAL')),
+    current_summary TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('ACTIVE','RESOLVED')),
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    occurrence_count INTEGER NOT NULL DEFAULT 1 CHECK (occurrence_count >= 1),
+    reopen_count INTEGER NOT NULL DEFAULT 0 CHECK (reopen_count >= 0),
+    resolved_at TEXT,
+    resolved_by TEXT,
+    resolution_reason TEXT,
+    UNIQUE(owner_scope, route_id, alert_code),
+    CHECK (status != 'RESOLVED' OR resolved_at IS NOT NULL),
+    CHECK (status != 'RESOLVED' OR resolved_by IS NOT NULL),
+    CHECK (status != 'RESOLVED' OR length(trim(resolution_reason)) > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_alert_incidents_scope_status
+ON alert_incidents(owner_scope, status, severity, last_seen_at);
+
 CREATE TRIGGER IF NOT EXISTS audit_log_no_update
 BEFORE UPDATE ON audit_log
 BEGIN

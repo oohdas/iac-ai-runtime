@@ -223,7 +223,7 @@ class SeanOSCoreTests(unittest.TestCase):
         backup=Path(self.temp.name) / "verified-backup.db"
         manifest=self.store.backup_manifest(self.sean, backup)
         self.assertTrue(manifest["integrity_ok"])
-        self.assertEqual(manifest["schema_version"], 8)
+        self.assertEqual(manifest["schema_version"], 9)
         restored_path=Path(self.temp.name) / "restored.db"
         self.store.restore_backup(self.sean, backup, restored_path)
         restored=SeanOSStore(restored_path)
@@ -268,7 +268,7 @@ class SeanOSCoreTests(unittest.TestCase):
         connection.commit(); connection.close()
         migrated=SeanOSStore(legacy_path)
         try:
-            self.assertEqual(migrated.schema_version, 8)
+            self.assertEqual(migrated.schema_version, 9)
             self.assertEqual(
                 migrated.connection.execute("SELECT status FROM work_queue WHERE id=?", (work_id,)).fetchone()[0],
                 "QUEUED",
@@ -277,6 +277,11 @@ class SeanOSCoreTests(unittest.TestCase):
                 "SELECT sql FROM sqlite_master WHERE name='work_queue'"
             ).fetchone()[0]
             self.assertIn("APPROVAL_BLOCKED", sql)
+            self.assertIsNotNone(
+                migrated.connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='alert_incidents'"
+                ).fetchone()
+            )
         finally:
             migrated.close()
 

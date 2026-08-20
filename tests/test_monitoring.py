@@ -173,6 +173,82 @@ class MonitoringTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_incident_resolves_and_reopens_when_alert_reappears(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SeanOSStore(Path(directory) / "incidents.db")
+            try:
+                monitor = Actor("monitor", frozenset({"IAC"}))
+                route = EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias")
+                plan = plan_alert_deliveries(
+                    [{"code": "DEAD_LETTER", "severity": "CRITICAL", "summary": "one"}],
+                    route=route,
+                    owner_scope="IAC",
+                )[0]
+                observed = store.record_alert_observation(monitor, plan)
+                incident_id = observed["incident"]["incident_id"]
+                resolved = store.resolve_alert_incident(
+                    Actor.sean(), incident_id, reason="Synthetic recovery verified"
+                )
+                self.assertEqual(resolved["status"], "RESOLVED")
+                self.assertEqual(store.active_alert_incidents(monitor, "IAC"), [])
+                reopened = store.record_alert_observation(monitor, plan)["incident"]
+                self.assertEqual(reopened["status"], "ACTIVE")
+                self.assertEqual(reopened["reopen_count"], 1)
+                self.assertEqual(reopened["occurrence_count"], 2)
+                self.assertIsNone(reopened["resolution_reason"])
+            finally:
+                store.close()
+
+    def test_incident_resolution_is_sean_only_and_scope_filtered(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SeanOSStore(Path(directory) / "incidents.db")
+            try:
+                monitor = Actor("monitor", frozenset({"IAC"}))
+                personal = Actor("personal-reader", frozenset({"PERSONAL"}))
+                plan = plan_alert_deliveries(
+                    [{"code": "STALE_WORKER", "severity": "CRITICAL", "summary": "stale"}],
+                    route=EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias"),
+                    owner_scope="IAC",
+                )[0]
+                incident_id = store.record_alert_observation(monitor, plan)["incident"]["incident_id"]
+                with self.assertRaises(AuthorizationError):
+                    store.get_alert_incident(personal, incident_id)
+                with self.assertRaises(AuthorizationError):
+                    store.resolve_alert_incident(
+                        monitor, incident_id, reason="Synthetic recovery verified"
+                    )
+                store.resolve_alert_incident(
+                    Actor.sean(), incident_id, reason="Synthetic recovery verified"
+                )
+                with self.assertRaisesRegex(ValidationError, "already resolved"):
+                    store.resolve_alert_incident(
+                        Actor.sean(), incident_id, reason="Duplicate resolution"
+                    )
+            finally:
+                store.close()
+
+    def test_incident_identity_ignores_changing_summary_counts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SeanOSStore(Path(directory) / "incidents.db")
+            try:
+                monitor = Actor("monitor", frozenset({"IAC"}))
+                route = EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias")
+                first = plan_alert_deliveries(
+                    [{"code": "BUDGET_BLOCKED", "severity": "HIGH", "summary": "1 item"}],
+                    route=route, owner_scope="IAC",
+                )[0]
+                second = plan_alert_deliveries(
+                    [{"code": "BUDGET_BLOCKED", "severity": "HIGH", "summary": "2 items"}],
+                    route=route, owner_scope="IAC",
+                )[0]
+                first_incident = store.record_alert_observation(monitor, first)["incident"]
+                second_incident = store.record_alert_observation(monitor, second)["incident"]
+                self.assertNotEqual(first["plan_id"], second["plan_id"])
+                self.assertEqual(first_incident["incident_id"], second_incident["incident_id"])
+                self.assertEqual(second_incident["current_summary"], "2 items")
+            finally:
+                store.close()
+
     def test_monitor_snapshot_can_record_without_delivering(self):
         with tempfile.TemporaryDirectory() as directory:
             store = SeanOSStore(Path(directory) / "monitor.db", scope_profile="IAC")

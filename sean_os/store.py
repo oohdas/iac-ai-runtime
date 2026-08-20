@@ -607,6 +607,20 @@ class SeanOSStore:
         findings=secret_findings(plan)
         if findings:
             raise ValidationError("Secret-like material is prohibited in alert evidence")
+        route_id=plan.get("action_target"); alert=plan.get("alert")
+        if not isinstance(route_id, str) or not route_id.strip():
+            raise ValidationError("Alert observation requires a route ID")
+        if not isinstance(alert, dict):
+            raise ValidationError("Alert observation requires alert evidence")
+        code=alert.get("code"); severity=alert.get("severity"); summary=alert.get("summary")
+        if not all(isinstance(value, str) and value.strip() for value in (code, summary)):
+            raise ValidationError("Alert code and summary are required")
+        if severity not in {"ATTENTION", "HIGH", "CRITICAL"}:
+            raise ValidationError("Alert severity is unsupported")
+        incident_identity={"owner_scope":scope, "route_id":route_id, "alert_code":code}
+        incident_id=hashlib.sha256(
+            json.dumps(incident_identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
         payload=json.dumps(plan, sort_keys=True, separators=(",", ":"))
         existing=self.connection.execute(
             "SELECT plan_payload FROM alert_observations WHERE plan_id=?", (plan_id,)
@@ -614,6 +628,10 @@ class SeanOSStore:
         if existing and existing["plan_payload"] != payload:
             raise ValidationError("Alert plan_id collision or payload mutation")
         stamp=now()
+        prior_incident=self.connection.execute(
+            "SELECT status FROM alert_incidents WHERE incident_id=?", (incident_id,)
+        ).fetchone()
+        reopened=bool(prior_incident and prior_incident["status"] == "RESOLVED")
         self.connection.execute(
             """INSERT INTO alert_observations
                (plan_id, owner_scope, route_id, plan_payload, first_seen_at, last_seen_at)
@@ -621,13 +639,79 @@ class SeanOSStore:
                ON CONFLICT(plan_id) DO UPDATE SET
                last_seen_at=excluded.last_seen_at,
                occurrence_count=alert_observations.occurrence_count+1""",
-            (plan_id, scope, plan.get("action_target"), payload, stamp, stamp),
+            (plan_id, scope, route_id, payload, stamp, stamp),
+        )
+        self.connection.execute(
+            """INSERT INTO alert_incidents
+               (incident_id, owner_scope, route_id, alert_code, severity,
+                current_summary, status, first_seen_at, last_seen_at)
+               VALUES(?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)
+               ON CONFLICT(incident_id) DO UPDATE SET
+               severity=excluded.severity,
+               current_summary=excluded.current_summary,
+               status='ACTIVE',
+               last_seen_at=excluded.last_seen_at,
+               occurrence_count=alert_incidents.occurrence_count+1,
+               reopen_count=alert_incidents.reopen_count +
+                   CASE WHEN alert_incidents.status='RESOLVED' THEN 1 ELSE 0 END,
+               resolved_at=NULL, resolved_by=NULL, resolution_reason=NULL""",
+            (incident_id, scope, route_id, code, severity, summary, stamp, stamp),
         )
         self.connection.commit()
         self._audit(actor, "RECORD_ALERT_OBSERVATION", "ALLOWED",
                     "Scoped non-delivering alert evidence recorded", plan_id,
-                    {"scope":scope, "route_id":plan.get("action_target")})
-        return self.get_alert_observation(actor, plan_id)
+                    {"scope":scope, "route_id":route_id, "incident_id":incident_id,
+                     "incident_reopened":reopened})
+        result=self.get_alert_observation(actor, plan_id)
+        result["incident"]=self.get_alert_incident(actor, incident_id)
+        return result
+
+    def get_alert_incident(self, actor: Actor, incident_id: str) -> dict[str, Any]:
+        row=self.connection.execute(
+            "SELECT * FROM alert_incidents WHERE incident_id=?", (incident_id,)
+        ).fetchone()
+        if row is None:
+            raise ValidationError("Alert incident not found")
+        self._authorize(actor, row["owner_scope"], (), "read")
+        return dict(row)
+
+    def active_alert_incidents(self, actor: Actor, scope: str) -> list[dict[str, Any]]:
+        if scope not in {"PERSONAL", "IAC"}:
+            raise ValidationError("Alert incidents require PERSONAL or IAC scope")
+        self._authorize(actor, scope, (), "read")
+        return [dict(row) for row in self.connection.execute(
+            """SELECT * FROM alert_incidents WHERE owner_scope=? AND status='ACTIVE'
+               ORDER BY CASE severity WHEN 'CRITICAL' THEN 3 WHEN 'HIGH' THEN 2 ELSE 1 END DESC,
+               last_seen_at DESC, incident_id""",
+            (scope,),
+        )]
+
+    def resolve_alert_incident(
+        self, actor: Actor, incident_id: str, *, reason: str
+    ) -> dict[str, Any]:
+        if not actor.is_sean:
+            raise AuthorizationError("Only Sean may resolve an alert incident in v0.1")
+        if not reason.strip():
+            raise ValidationError("Alert resolution requires a reason")
+        if secret_findings({"reason":reason}):
+            raise ValidationError("Secret-like material is prohibited in resolution evidence")
+        row=self.connection.execute(
+            "SELECT * FROM alert_incidents WHERE incident_id=?", (incident_id,)
+        ).fetchone()
+        if row is None:
+            raise ValidationError("Alert incident not found")
+        if row["status"] != "ACTIVE":
+            raise ValidationError("Alert incident is already resolved")
+        stamp=now()
+        self.connection.execute(
+            """UPDATE alert_incidents SET status='RESOLVED', resolved_at=?,
+               resolved_by=?, resolution_reason=? WHERE incident_id=?""",
+            (stamp, actor.id, reason, incident_id),
+        )
+        self.connection.commit()
+        self._audit(actor, "RESOLVE_ALERT_INCIDENT", "ALLOWED",
+                    reason, incident_id, {"scope":row["owner_scope"], "outcome":"RESOLVED"})
+        return self.get_alert_incident(actor, incident_id)
 
     def get_alert_observation(self, actor: Actor, plan_id: str) -> dict[str, Any]:
         row=self.connection.execute(
