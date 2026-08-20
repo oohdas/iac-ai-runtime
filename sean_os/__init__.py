@@ -10,8 +10,9 @@ from .integrations import ClaudeImportAdapter, ConnectorGate, ImportEnvelope
 from .commands import CommandGateway
 from .bridge import IACBridgeReceiver, BridgeDenied
 from .monitoring import (
-    EscalationRoute, acknowledge_alert_plan, classify_alerts,
-    deduplicate_alert_plans, plan_alert_deliveries,
+    EscalationRoute, RuntimeMonitor, acknowledge_alert_plan,
+    capture_monitor_snapshot, classify_alerts, deduplicate_alert_plans,
+    plan_alert_deliveries,
 )
 
 __all__ = [
@@ -23,6 +24,7 @@ __all__ = [
     "RevenueAgent", "RevenueCharter",
     "ClaudeImportAdapter", "ConnectorGate", "ImportEnvelope",
     "CommandGateway", "IACBridgeReceiver", "BridgeDenied", "EscalationRoute",
-    "acknowledge_alert_plan", "classify_alerts", "deduplicate_alert_plans",
+    "RuntimeMonitor", "acknowledge_alert_plan", "capture_monitor_snapshot",
+    "classify_alerts", "deduplicate_alert_plans",
     "plan_alert_deliveries",
 ]

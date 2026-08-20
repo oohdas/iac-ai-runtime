@@ -34,6 +34,31 @@ class EscalationRoute:
             raise ValueError("Unsupported minimum severity")
 
 
+@dataclass
+class RuntimeMonitor:
+    """Cadence gate for monitoring inside an existing supervised worker."""
+
+    route: EscalationRoute
+    interval_seconds: float = 30.0
+    stale_after_seconds: int = 90
+    next_due: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.interval_seconds < 1:
+            raise ValueError("Monitoring interval must be at least one second")
+        if self.stale_after_seconds < 1:
+            raise ValueError("Stale threshold must be positive")
+
+    def tick(self, store: Any, *, monotonic_now: float) -> dict[str, Any] | None:
+        if monotonic_now < self.next_due:
+            return None
+        snapshot = capture_monitor_snapshot(
+            store, stale_after_seconds=self.stale_after_seconds, route=self.route
+        )
+        self.next_due = monotonic_now + self.interval_seconds
+        return snapshot
+
+
 def classify_alerts(
     health: dict[str, Any], *, backup_ok: bool | None = None
 ) -> list[dict[str, str]]:
@@ -157,3 +182,31 @@ def acknowledge_alert_plan(
         json.dumps(evidence, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     return evidence
+
+
+def capture_monitor_snapshot(
+    store: Any, *, stale_after_seconds: int = 90,
+    backup_ok: bool | None = None, route: EscalationRoute | None = None,
+) -> dict[str, Any]:
+    """Capture health and optionally persist plans, with no delivery capability."""
+    health = store.runtime_health(
+        stale_after_seconds=stale_after_seconds, require_active_worker=True
+    )
+    alerts = classify_alerts(health, backup_ok=backup_ok)
+    observations = []
+    if route is not None:
+        from .store import Actor
+
+        plans = plan_alert_deliveries(alerts, route=route, owner_scope=route.owner_scope)
+        actor = Actor("runtime-monitor", frozenset({route.owner_scope}))
+        observations = [store.record_alert_observation(actor, plan) for plan in plans]
+    return {
+        "healthy": health["healthy"] and backup_ok is not False,
+        "delivery_authorized": False,
+        "alerts": alerts,
+        "recorded_observations": [
+            {"plan_id": item["plan_id"], "occurrence_count": item["occurrence_count"]}
+            for item in observations
+        ],
+        "health": health,
+    }

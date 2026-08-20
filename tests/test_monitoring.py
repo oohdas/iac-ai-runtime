@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 
 from sean_os import (
-    Actor, AuthorizationError, EscalationRoute, SeanOSStore, ValidationError,
+    Actor, AuthorizationError, EscalationRoute, RuntimeMonitor, SeanOSStore, ValidationError,
     acknowledge_alert_plan, classify_alerts,
     deduplicate_alert_plans, plan_alert_deliveries,
 )
@@ -186,6 +186,33 @@ class MonitoringTests(unittest.TestCase):
                 self.assertTrue(all(count == 2 for count in counts.values()))
             finally:
                 store.close()
+
+    def test_runtime_monitor_obeys_cadence_inside_existing_worker(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SeanOSStore(Path(directory) / "monitor.db", scope_profile="IAC")
+            try:
+                store.heartbeat("worker-1", "IAC", "IDLE")
+                monitor = RuntimeMonitor(
+                    EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias"),
+                    interval_seconds=30,
+                )
+                first = monitor.tick(store, monotonic_now=100)
+                skipped = monitor.tick(store, monotonic_now=129.9)
+                second = monitor.tick(store, monotonic_now=130)
+                self.assertIsNotNone(first)
+                self.assertIsNone(skipped)
+                self.assertIsNotNone(second)
+                self.assertTrue(first["healthy"])
+                self.assertFalse(first["delivery_authorized"])
+            finally:
+                store.close()
+
+    def test_runtime_monitor_rejects_unbounded_cadence(self):
+        with self.assertRaisesRegex(ValueError, "at least one second"):
+            RuntimeMonitor(
+                EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias"),
+                interval_seconds=0,
+            )
 
 
 if __name__ == "__main__":

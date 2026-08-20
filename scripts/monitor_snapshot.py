@@ -9,7 +9,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sean_os import (
-    Actor, EscalationRoute, SeanOSStore, classify_alerts, plan_alert_deliveries,
+    EscalationRoute, SeanOSStore, capture_monitor_snapshot,
 )
 
 
@@ -17,25 +17,10 @@ def build_snapshot(
     store: SeanOSStore, *, stale_after_seconds: int = 90,
     backup_ok: bool | None = None, route: EscalationRoute | None = None,
 ) -> dict:
-    health = store.runtime_health(
-        stale_after_seconds=stale_after_seconds, require_active_worker=True
+    return capture_monitor_snapshot(
+        store, stale_after_seconds=stale_after_seconds,
+        backup_ok=backup_ok, route=route,
     )
-    alerts = classify_alerts(health, backup_ok=backup_ok)
-    observations = []
-    if route is not None:
-        plans = plan_alert_deliveries(alerts, route=route, owner_scope=route.owner_scope)
-        actor = Actor("local-monitor", frozenset({route.owner_scope}))
-        observations = [store.record_alert_observation(actor, plan) for plan in plans]
-    return {
-        "healthy": health["healthy"] and backup_ok is not False,
-        "delivery_authorized": False,
-        "alerts": alerts,
-        "recorded_observations": [
-            {"plan_id": item["plan_id"], "occurrence_count": item["occurrence_count"]}
-            for item in observations
-        ],
-        "health": health,
-    }
 
 
 def main() -> int:

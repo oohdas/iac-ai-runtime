@@ -1,12 +1,16 @@
 """Local continuous-worker prototype. Use --once in tests/demos; production needs a supervised cloud process."""
 from pathlib import Path
 import argparse
+import json
 import signal
 import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from sean_os import Actor, LocalScheduler, PolicyDenied, SeanOSStore, chief_of_staff_registry
+from sean_os import (
+    Actor, EscalationRoute, LocalScheduler, PolicyDenied, RuntimeMonitor,
+    SeanOSStore, chief_of_staff_registry,
+)
 
 
 STOP = False
@@ -22,8 +26,25 @@ def main():
     parser.add_argument("--database", default="sean-os-local.db")
     parser.add_argument("--worker-id", default="local-worker-1")
     parser.add_argument("--poll-seconds", type=float, default=2.0)
+    parser.add_argument("--monitor-route-id")
+    parser.add_argument("--monitor-destination-kind", choices=("EMAIL", "WEBHOOK"))
+    parser.add_argument("--monitor-destination-ref")
+    parser.add_argument("--monitor-interval-seconds", type=float, default=30.0)
     parser.add_argument("--once", action="store_true")
     args=parser.parse_args()
+    route_fields=(args.monitor_route_id, args.monitor_destination_kind,
+                  args.monitor_destination_ref)
+    if any(route_fields) and not all(route_fields):
+        parser.error("integrated monitoring requires the complete route contract")
+    monitor=None
+    if all(route_fields):
+        monitor=RuntimeMonitor(
+            EscalationRoute(
+                args.monitor_route_id, "IAC", args.monitor_destination_kind,
+                args.monitor_destination_ref,
+            ),
+            interval_seconds=args.monitor_interval_seconds,
+        )
     signal.signal(signal.SIGINT, stop); signal.signal(signal.SIGTERM, stop)
     store=SeanOSStore(args.database, scope_profile="IAC")
     actor=Actor(args.worker_id, frozenset({"IAC"}))
@@ -33,6 +54,10 @@ def main():
     try:
         while not STOP:
             store.heartbeat(args.worker_id, "IAC", "IDLE")
+            if monitor is not None:
+                snapshot=monitor.tick(store, monotonic_now=time.monotonic())
+                if snapshot is not None:
+                    print(json.dumps(snapshot, sort_keys=True), flush=True)
             scheduler.tick()
             work=store.claim_work(actor, args.worker_id, lease_seconds=30)
             if work is None:

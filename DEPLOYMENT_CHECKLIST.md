@@ -18,6 +18,8 @@ Current Railway evidence and unresolved controls are recorded in
 
 - [x] Persistent storage is mounted at `/data`; ephemeral filesystem use is rejected.
 - [x] Exactly one SQLite worker replica is configured. Scaling requires migration to a managed database.
+- [x] Optional monitoring can run inside the existing worker and is disabled by
+  default, so it does not require another SQLite-connected service or replica.
 - [x] Worker starts through a privilege-dropping entrypoint and becomes Online within 90 seconds.
 - [x] Restart policy is On Failure with a maximum of 10 retries.
 - [ ] Kill-switch activation and worker termination are tested in production without live external actions.

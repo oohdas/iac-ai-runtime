@@ -44,6 +44,8 @@ The continuous runtime is implemented and verified locally. It is not yet a 24/7
 36. IAC worker/interface processes explicitly require the IAC profile, even for Sean-level actors.
 37. The monitoring loop persists evidence only, enforces matching route/database
     ownership, and has no network or delivery adapter.
+38. Integrated worker monitoring is disabled by default, runs within the existing
+    single worker when explicitly configured, and cannot create another replica.
 
 ## Local verification
 
@@ -128,6 +130,20 @@ python3 scripts/worker.py --database sean-os-local.db
 ```
 
 The process polls the durable queue, emits heartbeats, leases work, evaluates its registered action policy, settles reserved cost, retries bounded runtime failures, and exits cleanly on `SIGINT` or `SIGTERM`. Policy denials do not retry: they move to `APPROVAL_BLOCKED` or `POLICY_BLOCKED`.
+
+Monitoring may be integrated into that same process without adding a service or
+replica. It remains disabled unless all three route arguments are supplied:
+
+```bash
+python3 scripts/worker.py --database iac-ai.db \
+  --monitor-route-id iac-operator \
+  --monitor-destination-kind EMAIL \
+  --monitor-destination-ref iac-ops-alias \
+  --monitor-interval-seconds 30
+```
+
+Partial configuration fails startup. The integrated monitor writes only local
+scope-safe evidence and exposes no delivery adapter.
 
 ## Stop all new execution
 

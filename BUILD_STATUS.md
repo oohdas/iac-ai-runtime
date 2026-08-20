@@ -5,22 +5,22 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 17:05 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 17:09 EDT
-- Milestone selected: supervised non-delivering monitoring loop
+- Last continuous-goal checkpoint started: 2026-08-20 17:10 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 17:14 EDT
+- Milestone selected: single-worker integrated monitoring
 - Run state: Completed; scheduled builder paused and continuous goal active
-- Last meaningful milestone: supervised non-delivering monitoring loop verified
+- Last meaningful milestone: integrated single-worker monitoring verified and disabled by default
 - Deployed commit: `1aa8762`
 - Runtime: Online, private, one replica, persistent volume attached
-- Concrete changes: added an interruptible bounded-cadence monitor, strict scope/profile
-  matching, clean signal shutdown, supervisor-visible failures, lifecycle tests, and runbook
-- Verification: 85 tests passed; schema-v8 release, recovery, and synthetic kill-switch drills passed
+- Concrete changes: moved capture into runtime code, added monotonic cadence gating,
+  complete-contract startup validation, default-off single-worker integration, CLI tests, and docs
+- Verification: 90 tests passed; schema-v8 release, recovery, and synthetic kill-switch drills passed
 - Real data connected: No
 - Live integrations enabled: No
 - Current blocker: executing the production drill or delivering an alert requires
   Sean's separate exact approval; neither is needed for continued local development
-- Next milestone: integrate bounded monitoring into the single-worker runtime without
-  adding a second Railway replica or enabling external delivery
+- Next milestone: add fail-closed environment configuration for integrated monitoring
+  without changing the currently deployed Railway settings
 - Sean action required: No
 
 ## Recent verified milestones
@@ -42,6 +42,8 @@ Every automation run updates it, even when no notification is sent.
     scope-owned, non-secret route contract is supplied; it still cannot deliver alerts.
 11. A supervisor-friendly monitoring loop now runs at bounded cadence, exits cleanly
     on signals, fails visibly, and remains an optional non-deployed local process.
+12. The existing worker can now run monitoring at monotonic cadence inside its one
+    process; default startup remains unchanged and complete-contract tests prove no delivery.
 
 ## Update contract
 
