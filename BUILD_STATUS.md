@@ -5,21 +5,22 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last automation run started: 2026-08-20 16:31 EDT
-- Last automation run completed: 2026-08-20 16:32 EDT
-- Milestone selected: production-safe monitoring and escalation evidence
+- Last automation run started: 2026-08-20 16:45 EDT
+- Last automation run completed: 2026-08-20 16:47 EDT
+- Milestone selected: local alert-delivery contract and production drill plan
 - Run state: Completed
-- Last meaningful milestone: deterministic, non-delivering runtime escalation monitoring verified
+- Last meaningful milestone: scope-bound alert-delivery contract and production drill plan verified
 - Deployed commit: `1aa8762`
 - Runtime: Online, private, one replica, persistent volume attached
-- Concrete changes: added a pure alert classifier, machine-readable monitoring snapshot,
-  escalation-class tests, and operator documentation
-- Verification: 71 tests passed; release, recovery, and synthetic kill-switch drills passed
+- Concrete changes: added scope-owned escalation routes, severity-filtered unauthorized
+  delivery envelopes, cross-scope rejection tests, and an approval-bounded production drill plan
+- Verification: 75 tests passed; release, recovery, and synthetic kill-switch drills passed
 - Real data connected: No
 - Live integrations enabled: No
-- Current blocker: live alert delivery and production backup/kill-switch drills require
-  separate approval
-- Next milestone: define local alert-delivery contracts and a production drill plan
+- Current blocker: executing the production drill or delivering an alert requires
+  Sean's separate exact approval; neither is needed for continued local development
+- Next milestone: implement an auditable local acknowledgement and deduplication model
+  for escalation envelopes
 - Sean action required: No
 
 ## Recent verified milestones
@@ -31,6 +32,8 @@ Every automation run updates it, even when no notification is sent.
 5. Synthetic kill-switch drill added with audit and recovery evidence.
 6. Deterministic monitoring covers integrity, kill-switch, worker, queue, approval,
    budget, and backup escalation classes without sending alerts.
+7. Alert routing now fails closed across ownership scopes, filters by severity, and
+   produces approval-gated plans only; the production drill has explicit pass/abort criteria.
 
 ## Update contract
 

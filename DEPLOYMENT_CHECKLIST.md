@@ -36,7 +36,9 @@ Current Railway evidence and unresolved controls are recorded in
 
 - [ ] Encrypted automatic backups have defined retention and access ownership.
 - [ ] A restore into an isolated destination passes integrity and sentinel checks.
-- [ ] Stale worker, policy block, dead letter, budget block, and backup failure alerts are tested.
+- [x] Stale worker, policy block, dead letter, budget block, and backup failure
+  classifications and non-delivering route envelopes are tested locally.
+- [ ] Production alert delivery is tested after a route-specific approval.
 - [ ] Operational report cadence and Sean escalation route are approved.
 - [ ] Rollback owner, process, and recovery-time target are documented.
 

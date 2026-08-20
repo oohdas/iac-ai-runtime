@@ -1,6 +1,6 @@
 import unittest
 
-from sean_os import classify_alerts
+from sean_os import EscalationRoute, classify_alerts, plan_alert_deliveries
 
 
 class MonitoringTests(unittest.TestCase):
@@ -49,6 +49,39 @@ class MonitoringTests(unittest.TestCase):
             },
         )
         self.assertTrue(all(set(alert) == {"code", "severity", "summary"} for alert in alerts))
+
+    def test_delivery_plan_is_explicitly_unauthorized(self):
+        route = EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias")
+        plans = plan_alert_deliveries(
+            [{"code": "STALE_WORKER", "severity": "CRITICAL", "summary": "stale"}],
+            route=route,
+            owner_scope="IAC",
+        )
+        self.assertEqual(len(plans), 1)
+        self.assertEqual(plans[0]["status"], "PLANNED")
+        self.assertFalse(plans[0]["delivery_authorized"])
+        self.assertTrue(plans[0]["approval_required"])
+        self.assertEqual(plans[0]["approval_action_type"], "DELIVER_ALERT")
+
+    def test_delivery_plan_filters_below_route_threshold(self):
+        route = EscalationRoute(
+            "critical-only", "IAC", "WEBHOOK", "iac-monitor-hook", "CRITICAL"
+        )
+        plans = plan_alert_deliveries(
+            [{"code": "POLICY_BLOCKED", "severity": "HIGH", "summary": "blocked"}],
+            route=route,
+            owner_scope="IAC",
+        )
+        self.assertEqual(plans, [])
+
+    def test_delivery_route_rejects_cross_scope_use(self):
+        route = EscalationRoute("personal-operator", "PERSONAL", "EMAIL", "owner-alias")
+        with self.assertRaisesRegex(ValueError, "ownership"):
+            plan_alert_deliveries([], route=route, owner_scope="IAC")
+
+    def test_delivery_route_rejects_shared_ownership(self):
+        with self.assertRaisesRegex(ValueError, "PERSONAL or IAC"):
+            EscalationRoute("shared", "SHARED", "EMAIL", "shared-alias")
 
 
 if __name__ == "__main__":

@@ -64,6 +64,9 @@ Expected evidence:
 - the isolated kill-switch drill blocks work, records audit evidence, and recovers.
 - monitoring classifies stale-worker, policy, dead-letter, budget, approval,
   integrity, kill-switch, no-worker, and backup failures without delivering alerts.
+- escalation routes produce scope-bound, severity-filtered delivery plans that
+  remain unauthorized; `PRODUCTION_DRILL_PLAN.md` defines the approval and evidence
+  required for production backup, restore, kill-switch, and recovery testing.
 
 ## Continuous verification
 
@@ -114,6 +117,9 @@ Use `SeanOSStore.set_kill_switch(Actor.sean(), True)`. Existing infrastructure s
 - Approval of the chosen hosting/database/monitoring services and their cost.
 - Production identity, secret storage, backups, alerts, and independent restore test.
 - Separate approval before any real email, calendar, IAC, QNAP, QBO, ShopVox, RBC, or customer-facing connection.
+
+The bounded production recovery procedure and pass/fail evidence are specified
+in `PRODUCTION_DRILL_PLAN.md`. That plan does not itself authorize execution.
 
 ## Next implementation gap
 

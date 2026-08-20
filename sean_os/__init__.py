@@ -9,7 +9,7 @@ from .revenue_agent import RevenueAgent, RevenueCharter
 from .integrations import ClaudeImportAdapter, ConnectorGate, ImportEnvelope
 from .commands import CommandGateway
 from .bridge import IACBridgeReceiver, BridgeDenied
-from .monitoring import classify_alerts
+from .monitoring import EscalationRoute, classify_alerts, plan_alert_deliveries
 
 __all__ = [
     "Actor", "SeanOSStore", "AuthorizationError", "ValidationError",
@@ -19,5 +19,6 @@ __all__ = [
     "LocalScheduler",
     "RevenueAgent", "RevenueCharter",
     "ClaudeImportAdapter", "ConnectorGate", "ImportEnvelope",
-    "CommandGateway", "IACBridgeReceiver", "BridgeDenied", "classify_alerts",
+    "CommandGateway", "IACBridgeReceiver", "BridgeDenied", "EscalationRoute",
+    "classify_alerts", "plan_alert_deliveries",
 ]
