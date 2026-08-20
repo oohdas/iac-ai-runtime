@@ -2,6 +2,9 @@
 
 No deployment is authorized by this document. Every item must have evidence before production is enabled.
 
+Current Railway evidence and unresolved controls are recorded in
+`RAILWAY_READINESS_AUDIT.md`.
+
 ## Ownership and isolation
 
 - [ ] IAC worker is deployed only in the IAC-owned Railway account.
@@ -21,6 +24,8 @@ No deployment is authorized by this document. Every item must have evidence befo
 
 ## Security and approvals
 
+- [x] IAC Railway administrator 2FA is enabled and verified.
+- [x] Railway compute hard limit ($15) and email-alert soft limit ($10) are configured.
 - [ ] Production identities use least privilege and separate worker/operator credentials.
 - [ ] Secrets are stored in the hosting secret manager and never committed or logged.
 - [ ] External and irreversible handlers remain disabled until individually reviewed.
