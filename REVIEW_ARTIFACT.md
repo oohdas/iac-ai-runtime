@@ -37,8 +37,9 @@ be recorded immediately before approval and push.
 
 ## Deployment and rollback gate
 
-No push is authorized by this artifact. A verified encrypted pre-release backup is
-mandatory because schema v12 cannot be opened by the older deployed code. On failure,
-stop execution and restore the matching backup; do not point `1aa8762` at a v12
-database. See `PRODUCTION_DECISION.md` and `PRODUCTION_DRILL_PLAN.md` for the exact
-approval and recovery boundaries.
+No push is authorized by this artifact. A completed, locked manual Railway volume
+backup taken while the worker is stopped is mandatory because schema v12 cannot be
+opened by the older deployed code. On failure, stop execution and use Railway's staged
+same-project/environment restore for the exact pre-release backup; do not point
+`1aa8762` at a v12 database. See `PRODUCTION_DECISION.md` and
+`PRODUCTION_DRILL_PLAN.md` for the exact approval and recovery boundaries.

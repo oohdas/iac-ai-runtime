@@ -42,7 +42,8 @@ Current Railway evidence and unresolved controls are recorded in
 
 ## Recovery and monitoring
 
-- [ ] Encrypted automatic backups have defined retention and access ownership.
+- [ ] A stopped-worker manual Railway volume backup is completed and locked before
+  schema migration; scheduled retention and access ownership remain a broader-production gate.
 - [ ] A restore into an isolated destination passes integrity and sentinel checks.
 - [x] Stale worker, policy block, dead letter, budget block, and backup failure
   classifications and non-delivering route envelopes are tested locally.

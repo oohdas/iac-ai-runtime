@@ -23,12 +23,17 @@
 1. Confirm the local tree is clean and record the exact head and commit list after
    `1aa8762`.
 2. Obtain Sean's explicit approval for the backup-and-deploy package.
-3. Create and verify the encrypted pre-release database backup.
+3. Stop the single worker, create and lock one completed manual Railway volume
+   backup, and record its timestamp without inspecting database contents.
 4. Push the reviewed local `main` to the existing IAC remote once.
 5. Observe Railway automatic deployment and run the checks in
    `PRODUCTION_DECISION.md` without enabling any optional variable or connector.
 6. Preserve the deployment, backup, and verification evidence without record content
    or secrets.
+
+Railway's documented restore stages a replacement volume in the same project and
+environment while retaining the former volume. Do not deploy that staged restore
+unless the release rollback condition is met and the exact backup is reviewed.
 
 ## Not authorized by handoff
 

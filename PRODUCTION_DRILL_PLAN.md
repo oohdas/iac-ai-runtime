@@ -9,7 +9,8 @@ Before scheduling the drill, Sean approves one exact package containing:
 
 - IAC environment and worker service identifier;
 - drill window and operator;
-- backup destination, retention, and encryption owner;
+- Railway volume backup identifier, lock/retention policy, access owner, and
+  at-rest encryption evidence appropriate to the approved environment;
 - escalation route ID and non-secret destination reference;
 - maximum expected cost and rollback owner;
 - permission to activate and clear the production kill switch.
@@ -21,7 +22,7 @@ PERSONAL infrastructure, records, destinations, and credentials are excluded.
 | Phase | Controlled action | Required evidence | Abort condition |
 |---|---|---|---|
 | Baseline | Confirm one private worker, IAC profile, healthy database, attached volume, and zero live connectors | Timestamped health snapshot and configuration review | Any ownership, scope, exposure, or integrity mismatch |
-| Backup | Create encrypted production backup without inspecting records | Backup identifier, size, hash, retention, owner, and success result | Encryption, ownership, or destination cannot be proven |
+| Backup | Stop the single worker, create and lock one manual Railway volume backup without inspecting records | Completed backup timestamp/identifier, lock state, owner, and stopped-worker evidence | Worker cannot be quiesced, backup fails, or access/at-rest protection cannot be proven |
 | Restore | Restore to a new isolated destination | Integrity check, foreign-key check, schema version, sentinel verification | Existing destination would be overwritten or any check fails |
 | Kill switch | Activate switch and submit synthetic `NOOP` work | Work is not claimed; audit event records denial | Any external handler is enabled or work executes |
 | Worker recovery | Stop/restart the single worker while switch remains active | Stale/no-worker alert classifications and clean restart evidence | Multiple workers appear or volume is absent |
@@ -35,6 +36,11 @@ never overwrites production, no real record content is copied into evidence, no
 external alert is delivered, the IAC/PERSONAL boundary remains intact, and the
 worker returns healthy with one replica. Any failure leaves the kill switch on
 until the rollback owner reviews the evidence.
+
+Railway volume restores are staged in the same project and environment with a
+replacement volume; the prior volume is retained. Restoring also removes backups
+newer than the selected point, so the staged change and exact timestamp must be
+reviewed before deployment.
 
 ## Separate future approval
 

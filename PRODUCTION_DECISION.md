@@ -15,18 +15,24 @@
 
 Approve one controlled release package covering:
 
-1. create and verify an encrypted backup of the current Railway database without
-   inspecting record contents;
-2. push the clean, release-gated local `main` range after `1aa8762` to
+1. stop the single worker so SQLite is quiescent, then create and lock one manual
+   Railway volume backup from the service's Backups tab without inspecting records;
+2. record the completed backup timestamp, keep the original volume, and verify the
+   backup is available for Railway's staged same-project/environment restore;
+3. push the clean, release-gated local `main` range after `1aa8762` to
    `oohdas/iac-ai-runtime/main`, allowing Railway's existing automatic deployment;
-3. leave all monitoring, synthetic-delivery, interface, operator, and connector
+4. leave all monitoring, synthetic-delivery, interface, operator, and connector
    environment variables unchanged and disabled;
-4. verify one replica, private exposure, `/data` volume attachment, schema v12,
+5. verify one replica, private exposure, `/data` volume attachment, schema v12,
    IAC scope profile, database integrity, worker uid 10001, and healthy startup;
-5. stop and restore the pre-release backup if migration or health verification fails.
+6. stop and stage the locked pre-release backup restore if migration or health
+   verification fails; review the staged replacement volume before deploying it.
 
-This decision does not authorize live Claude, alerts, external messages, real data,
-new credentials, a public domain, new services, additional replicas, or higher spend.
+Railway documents manual backups for any volume, including SQLite; restores are staged
+to a replacement volume while the former volume is retained. Incremental backup
+storage remains subject to the existing $10 soft/$15 hard workspace controls. This
+decision does not authorize live Claude, alerts, external messages, real data, new
+credentials, a public domain, new services, additional replicas, or higher spend.
 
 ## Ownership boundary
 
@@ -40,8 +46,12 @@ new credentials, a public domain, new services, additional replicas, or higher s
 Schema v12 is forward-only for this release. Rolling source back to `1aa8762`
 without restoring the matching pre-release database is prohibited because the older
 v7 runtime rejects newer schema versions. Recovery therefore means: kill switch or stop
-worker, restore the verified pre-release backup to an isolated/new target, verify its
-manifest and integrity, then reattach only through the approved Railway procedure.
+worker, use Railway's staged restore of the locked pre-release backup, review the new
+volume mapping, then deploy the restored source/database pair. Railway backups restore
+only within the same project and environment and restoring removes newer backups, so
+the exact pre-release backup must be selected deliberately.
+
+Platform procedure: [Railway volume backups](https://docs.railway.com/volumes/backups).
 
 ## Still separately approval-gated
 

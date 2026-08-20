@@ -24,8 +24,8 @@ Every automation run updates it, even when no notification is sent.
 - Live integrations enabled: No
 - Current blocker: the next safe step changes the persistent Railway database from
   deployed schema v7 to v12 and therefore requires Sean's exact backup/deploy approval
-- Next milestone: create/verify the encrypted pre-release backup, push the reviewed
-  range after `1aa8762`, observe the existing automatic deployment, and verify health
+- Next milestone: stop the worker, create/lock the native Railway volume backup,
+  push the reviewed range after `1aa8762`, observe automatic deployment, and verify health
 - Sean action required: Yes — approve the exact controlled package in
   `PRODUCTION_DECISION.md`; no push, environment change, or deployment has occurred
 
