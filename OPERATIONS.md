@@ -40,6 +40,8 @@ The continuous runtime is implemented and verified locally. It is not yet a 24/7
 32. Portfolio capacity changes may pause agent-created work only; human projects receive recommendations.
 33. Rejected revenue hypotheses are retained with reopen triggers and no external action authority.
 34. The local Git repository has no remote; destination and ownership require explicit approval.
+35. A database binds permanently to DEVELOPMENT, IAC, or PERSONAL; reopening under another profile fails closed.
+36. IAC worker/interface processes explicitly require the IAC profile, even for Sean-level actors.
 
 ## Local verification
 

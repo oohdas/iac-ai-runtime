@@ -56,6 +56,8 @@ This build intentionally uses Python's standard library and SQLite so it can be 
 - Capacity-adjusted expected return using margin, probability, cost, Sean time, strategic fit, and evidence
 - Retained rejected revenue hypotheses with explicit reopen triggers
 - Local Git repository and review artifact; no remote or external push is configured
+- Permanently bound DEVELOPMENT, IAC, or PERSONAL database profiles; profile mismatch fails closed
+- IAC worker and interface always open the database in IAC-only mode
 - Per-scope monthly budgets with cost reservation, settlement, usage events, and fail-closed blocking
 - Worker heartbeats and runtime health reporting with stale-worker, dead-letter, integrity, and kill-switch checks
 - Synthetic seed data and automated tests

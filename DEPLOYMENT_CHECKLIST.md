@@ -7,6 +7,8 @@ No deployment is authorized by this document. Every item must have evidence befo
 - [ ] IAC worker is deployed only in the IAC-owned Railway account.
 - [ ] PERSONAL runtime uses separately owned infrastructure and credentials.
 - [ ] No PERSONAL data, secret, backup, or identifier is present in IAC infrastructure.
+- [ ] IAC production database reports the permanent `IAC` scope profile; mismatch-start failure is observed.
+- [ ] PERSONAL production database reports the permanent `PERSONAL` scope profile and is separately owned.
 - [ ] Production database and backups have explicit sale-portability classification.
 
 ## Runtime

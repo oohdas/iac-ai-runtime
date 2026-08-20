@@ -25,7 +25,7 @@ def main():
     parser.add_argument("--once", action="store_true")
     args=parser.parse_args()
     signal.signal(signal.SIGINT, stop); signal.signal(signal.SIGTERM, stop)
-    store=SeanOSStore(args.database)
+    store=SeanOSStore(args.database, scope_profile="IAC")
     actor=Actor(args.worker_id, frozenset({"IAC"}))
     registry=chief_of_staff_registry(store, actor)
     scheduler=LocalScheduler(store, actor)

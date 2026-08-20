@@ -125,6 +125,8 @@ CREATE TABLE IF NOT EXISTS runtime_state (
 
 INSERT OR IGNORE INTO runtime_state(key, value, updated_at)
 VALUES ('kill_switch', 'OFF', '1970-01-01T00:00:00+00:00');
+INSERT OR IGNORE INTO runtime_state(key, value, updated_at)
+VALUES ('scope_profile', 'UNBOUND', '1970-01-01T00:00:00+00:00');
 
 CREATE TABLE IF NOT EXISTS budgets (
     owner_scope TEXT NOT NULL CHECK (owner_scope IN ('PERSONAL','IAC','SHARED')),

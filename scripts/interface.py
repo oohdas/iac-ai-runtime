@@ -125,7 +125,8 @@ def main():
     parser.add_argument("--database", default="sean-os-local.db")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
-    args=parser.parse_args(); token=require_token(); store=SeanOSStore(args.database)
+    args=parser.parse_args(); token=require_token()
+    store=SeanOSStore(args.database, scope_profile="IAC")
     server=HTTPServer((args.host, args.port), handler_factory(store, token))
     try:
         server.serve_forever()

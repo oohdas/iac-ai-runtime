@@ -32,6 +32,28 @@ class SeanOSCoreTests(unittest.TestCase):
         with self.assertRaises(AuthorizationError):
             self.store.get_record(self.iac_agent, record_id)
 
+    def test_iac_database_profile_rejects_personal_even_from_sean_and_is_permanent(self):
+        path=Path(self.temp.name) / "iac-profile.db"
+        iac_store=SeanOSStore(path, scope_profile="IAC")
+        try:
+            iac_store.create_record(self.sean, "GOAL", "IAC", {"name":"Company"})
+            with self.assertRaises(AuthorizationError):
+                iac_store.create_record(self.sean, "GOAL", "PERSONAL", {"name":"Private"})
+        finally:
+            iac_store.close()
+        with self.assertRaises(AuthorizationError):
+            SeanOSStore(path, scope_profile="DEVELOPMENT")
+
+    def test_personal_database_profile_rejects_iac_records(self):
+        path=Path(self.temp.name) / "personal-profile.db"
+        personal_store=SeanOSStore(path, scope_profile="PERSONAL")
+        try:
+            personal_store.create_record(self.sean, "GOAL", "PERSONAL", {"name":"Health"})
+            with self.assertRaises(AuthorizationError):
+                personal_store.create_record(self.sean, "GOAL", "IAC", {"name":"Company"})
+        finally:
+            personal_store.close()
+
     def test_shared_record_requires_explicit_principal(self):
         with self.assertRaises(ValidationError):
             self.store.create_record(self.sean, "KNOWLEDGE", "SHARED", {"claim": "x"})

@@ -46,13 +46,35 @@ def current_period() -> str:
 
 
 class SeanOSStore:
-    def __init__(self, path: str | Path = ":memory:") -> None:
+    def __init__(
+        self, path: str | Path = ":memory:", *, scope_profile: str = "DEVELOPMENT",
+    ) -> None:
         self.connection = sqlite3.connect(str(path))
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
         schema = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
         self.connection.executescript(schema)
         self.schema_version=apply_migrations(self.connection)
+        profile=scope_profile.upper()
+        profiles={"DEVELOPMENT":frozenset(SCOPES), "IAC":frozenset({"IAC"}),
+                  "PERSONAL":frozenset({"PERSONAL","SHARED"})}
+        if profile not in profiles:
+            self.connection.close(); raise ValidationError("Unknown database scope profile")
+        stored=self.connection.execute(
+            "SELECT value FROM runtime_state WHERE key='scope_profile'"
+        ).fetchone()[0]
+        if stored == "UNBOUND":
+            self.connection.execute(
+                "UPDATE runtime_state SET value=?, updated_at=? WHERE key='scope_profile'",
+                (profile, now()),
+            )
+            self.connection.commit(); stored=profile
+        if stored != profile:
+            self.connection.close()
+            raise AuthorizationError(
+                f"Database is bound to {stored} profile and cannot open as {profile}"
+            )
+        self.scope_profile=profile; self.allowed_scopes=profiles[profile]
 
     def close(self) -> None:
         self.connection.close()
@@ -78,6 +100,10 @@ class SeanOSStore:
     def _authorize(self, actor: Actor, scope: str, principals: Iterable[str], action: str) -> None:
         if scope not in SCOPES:
             raise ValidationError(f"Unknown scope: {scope}")
+        if scope not in self.allowed_scopes:
+            raise AuthorizationError(
+                f"{scope} is outside the database's {self.scope_profile} scope profile"
+            )
         if actor.is_sean:
             return
         if scope not in actor.scopes:
@@ -455,9 +481,12 @@ class SeanOSStore:
                 ).fetchone()[0]
                 if version != LATEST_SCHEMA_VERSION:
                     raise sqlite3.DatabaseError("Source backup schema version is unsupported")
+                profile=source_connection.execute(
+                    "SELECT value FROM runtime_state WHERE key='scope_profile'"
+                ).fetchone()[0]
                 with sqlite3.connect(target) as target_connection:
                     source_connection.backup(target_connection)
-            restored=SeanOSStore(target)
+            restored=SeanOSStore(target, scope_profile=profile)
             result=restored.integrity_check(); restored.close()
             if not result["ok"]:
                 raise sqlite3.DatabaseError("Restored database failed integrity check")
