@@ -14,7 +14,7 @@ from sean_os import (
     ReportingService, RevenueAgent, RevenueCharter,
     chief_of_staff_registry, default_registry,
 )
-from scripts.interface import require_token
+from scripts.interface import handler_factory, require_token
 
 
 class SeanOSCoreTests(unittest.TestCase):
@@ -971,6 +971,40 @@ class SeanOSCoreTests(unittest.TestCase):
         token="synthetic-interface-token-that-is-long-enough"
         with patch.dict("os.environ", {"SEAN_OS_INTERFACE_TOKEN":token}, clear=False):
             self.assertEqual(require_token(), token)
+
+    def test_operator_token_is_optional_strong_and_separate(self):
+        from scripts.interface import optional_operator_token
+
+        interface_token="synthetic-interface-token-that-is-long-enough"
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertIsNone(optional_operator_token(interface_token))
+        with patch.dict("os.environ", {"SEAN_OS_OPERATOR_TOKEN":"short"}, clear=True):
+            with self.assertRaises(RuntimeError):
+                optional_operator_token(interface_token)
+        with patch.dict(
+            "os.environ", {"SEAN_OS_OPERATOR_TOKEN":interface_token}, clear=True
+        ):
+            with self.assertRaisesRegex(RuntimeError, "must differ"):
+                optional_operator_token(interface_token)
+
+    def test_interface_and_operator_authority_are_distinct(self):
+        interface_token="synthetic-interface-token-that-is-long-enough"
+        operator_token="synthetic-operator-token-that-is-different"
+        handler=handler_factory(self.store, interface_token, operator_token)
+
+        request=object.__new__(handler)
+        request.headers={"Authorization":f"Bearer {interface_token}"}
+        self.assertTrue(request._authorized())
+        self.assertFalse(request._operator_authorized())
+
+        request.headers={"Authorization":f"Bearer {operator_token}"}
+        self.assertFalse(request._authorized())
+        self.assertTrue(request._operator_authorized())
+
+        no_operator=handler_factory(self.store, interface_token)
+        request=object.__new__(no_operator)
+        request.headers={"Authorization":f"Bearer {interface_token}"}
+        self.assertFalse(request._operator_authorized())
 
     def test_full_idea_to_approval_decision_to_report_scenario(self):
         interface_actor=Actor("chatgpt-interface", frozenset({"IAC"}))

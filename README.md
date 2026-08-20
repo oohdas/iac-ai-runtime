@@ -43,7 +43,7 @@ This build intentionally uses Python's standard library and SQLite so it can be 
 - Locked, visible gates for email, calendar, ShopVox, QuickBooks Online, QNAP, and RBC read-only
 - Idempotent, scope-isolated command gateway for the future ChatGPT primary interface
 - Whitelisted asynchronous commands with strict field schemas and no arbitrary action passthrough
-- Local bearer-authenticated HTTP boundary with body limits, no-store responses, and audited authentication failures
+- Local bearer-authenticated HTTP boundary with separate interface/operator credentials, body limits, no-store responses, and audited authentication failures
 - Enforced effective/expiry timestamps, confidence, retention rules, and derived currentness on every record
 - Standard material-action audit envelope covering evidence, model/tool, cost, outcome, and rollback status
 - Morning/weekly reports with explicit fact, estimate, inference, and recommendation sections
@@ -72,7 +72,8 @@ python3 scripts/worker.py --once
 python3 scripts/healthcheck.py --database sean-os-local.db
 python3 scripts/recovery_drill.py
 python3 scripts/verify_release.py
-SEAN_OS_INTERFACE_TOKEN='<32+ random characters>' python3 scripts/interface.py
+SEAN_OS_INTERFACE_TOKEN='<32+ random characters>' \
+SEAN_OS_OPERATOR_TOKEN='<different 32+ random characters>' python3 scripts/interface.py
 ```
 
 `scripts/verify_release.py` is the canonical fail-closed release gate. The included

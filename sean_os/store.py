@@ -721,7 +721,12 @@ class SeanOSStore:
         if row is None:
             raise ValidationError("Alert incident not found")
         if row["status"] != "ACTIVE":
-            raise ValidationError("Alert incident is already resolved")
+            if row["resolved_by"] == actor.id and row["resolution_reason"] == reason:
+                self._audit(actor, "RESOLVE_ALERT_INCIDENT", "ALLOWED",
+                            "Idempotent resolution replay", incident_id,
+                            {"scope":row["owner_scope"], "outcome":"ALREADY_RESOLVED"})
+                return dict(row)
+            raise ValidationError("Alert incident is already resolved with different evidence")
         stamp=now()
         self.connection.execute(
             """UPDATE alert_incidents SET status='RESOLVED', resolved_at=?,

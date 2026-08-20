@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -22,8 +23,22 @@ def require_token() -> str:
     return token
 
 
-def handler_factory(store: SeanOSStore, token: str):
+def optional_operator_token(interface_token: str) -> Optional[str]:
+    token=os.environ.get("SEAN_OS_OPERATOR_TOKEN", "")
+    if not token:
+        return None
+    if len(token) < 32:
+        raise RuntimeError("SEAN_OS_OPERATOR_TOKEN must contain at least 32 characters")
+    if hmac.compare_digest(token, interface_token):
+        raise RuntimeError("SEAN_OS_OPERATOR_TOKEN must differ from SEAN_OS_INTERFACE_TOKEN")
+    return token
+
+
+def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str] = None):
     gateway=CommandGateway(store, Actor("chatgpt-interface", frozenset({"IAC"})))
+    operator_gateway=CommandGateway(
+        store, Actor("sean-chatgpt-operator", frozenset({"IAC"}), is_sean=True)
+    )
 
     class Handler(BaseHTTPRequestHandler):
         server_version="SeanOSInterface/0.1"
@@ -45,6 +60,12 @@ def handler_factory(store: SeanOSStore, token: str):
             supplied=self.headers.get("Authorization", "")
             expected=f"Bearer {token}"
             return hmac.compare_digest(supplied, expected)
+
+        def _operator_authorized(self) -> bool:
+            if operator_token is None:
+                return False
+            supplied=self.headers.get("Authorization", "")
+            return hmac.compare_digest(supplied, f"Bearer {operator_token}")
 
         def _auth_or_reject(self) -> bool:
             if self._authorized(): return True
@@ -82,6 +103,8 @@ def handler_factory(store: SeanOSStore, token: str):
                 except (ValidationError, ValueError) as exc:
                     self._json(400, {"error":"invalid_request", "message":str(exc)})
                 return
+            if parts == ["v1","incidents"]:
+                self._json(200, {"incidents":gateway.active_incidents()}); return
             if len(parts) == 4 and parts[:2] == ["v1","commands"] and parts[3] in {"status","result"}:
                 work_id=parts[2]
                 try:
@@ -100,6 +123,27 @@ def handler_factory(store: SeanOSStore, token: str):
             self._json(404, {"error":"not_found"})
 
         def do_POST(self):
+            parts=urlparse(self.path).path.strip("/").split("/")
+            if len(parts) == 4 and parts[:2] == ["v1","incidents"] and parts[3] == "resolve":
+                if not self._operator_authorized():
+                    store.record_policy_decision(
+                        Actor("unauthenticated-interface", frozenset()), parts[2], False,
+                        "Operator authentication failed", {"path":self.path},
+                    )
+                    self._json(403, {"error":"operator_authorization_required"}); return
+                try:
+                    length=int(self.headers.get("Content-Length", "0"))
+                    if length <= 0 or length > MAX_BODY_BYTES:
+                        raise ValidationError("Request body size is invalid")
+                    request=json.loads(self.rfile.read(length))
+                    if set(request) != {"reason"} or not isinstance(request["reason"], str):
+                        raise ValidationError("Resolution request fields are invalid")
+                    incident=operator_gateway.resolve_incident(parts[2], reason=request["reason"])
+                    self._json(200, {"incident":incident})
+                except (ValidationError, AuthorizationError, ValueError, TypeError,
+                        json.JSONDecodeError) as exc:
+                    self._json(400, {"error":"invalid_request", "message":str(exc)})
+                return
             if not self._auth_or_reject(): return
             if self.path != "/v1/commands":
                 self._json(404, {"error":"not_found"}); return
@@ -126,8 +170,9 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     args=parser.parse_args(); token=require_token()
+    operator_token=optional_operator_token(token)
     store=SeanOSStore(args.database, scope_profile="IAC")
-    server=HTTPServer((args.host, args.port), handler_factory(store, token))
+    server=HTTPServer((args.host, args.port), handler_factory(store, token, operator_token))
     try:
         server.serve_forever()
     finally:

@@ -160,3 +160,25 @@ class CommandGateway:
 
     def audit_trace(self, *, limit: int = 100) -> list[dict[str, Any]]:
         return self.store.scoped_audit_events(self.actor, limit=limit)
+
+    def active_incidents(self, *, scope: str = "IAC") -> list[dict[str, Any]]:
+        if scope != "IAC":
+            raise AuthorizationError("v0.1 incident interface is isolated to IAC scope")
+        incidents=self.store.active_alert_incidents(self.actor, scope)
+        self.store.record_policy_decision(
+            self.actor, None, True, "Scoped active incidents returned",
+            {"scope":scope, "incident_count":len(incidents)},
+        )
+        return incidents
+
+    def resolve_incident(
+        self, incident_id: str, *, reason: str, scope: str = "IAC"
+    ) -> dict[str, Any]:
+        if scope != "IAC":
+            raise AuthorizationError("v0.1 incident interface is isolated to IAC scope")
+        if not self.actor.is_sean:
+            raise AuthorizationError("Only Sean's authenticated interface may resolve incidents")
+        incident=self.store.get_alert_incident(self.actor, incident_id)
+        if incident["owner_scope"] != scope:
+            raise AuthorizationError("Incident is outside the interface scope")
+        return self.store.resolve_alert_incident(self.actor, incident_id, reason=reason)

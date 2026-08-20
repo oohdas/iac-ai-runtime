@@ -50,6 +50,9 @@ The continuous runtime is implemented and verified locally. It is not yet a 24/7
     resolve them, and a recurring condition automatically reopens the same incident.
 40. Daily and weekly reports include only active incidents and health data from
     their own scope, remain local-only, and exclude resolved incident history.
+41. Incident reads use the ordinary IAC interface identity; resolution requires a
+    distinct optional Sean operator credential. Missing, weak, or reused operator
+    credentials fail closed, and rejected attempts are audited without secrets.
 
 ## Local verification
 
@@ -110,6 +113,9 @@ Expected evidence:
   a delivery capability.
 - daily/weekly reports rank active incidents by severity, show changes since the
   prior report, and never expose another scope's workers, queue, or budgets.
+- the primary interface can query IAC active incidents; local resolution requires
+  the distinct `SEAN_OS_OPERATOR_TOKEN`, is idempotent only for identical evidence,
+  and does not authorize alert delivery or any external action.
 
 ## Continuous verification
 

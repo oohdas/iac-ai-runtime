@@ -3,8 +3,8 @@ import tempfile
 from pathlib import Path
 
 from sean_os import (
-    Actor, AuthorizationError, EscalationRoute, ReportingService, RuntimeMonitor,
-    SeanOSStore, ValidationError,
+    Actor, AuthorizationError, CommandGateway, EscalationRoute, ReportingService,
+    RuntimeMonitor, SeanOSStore, ValidationError,
     acknowledge_alert_plan, classify_alerts,
     deduplicate_alert_plans, plan_alert_deliveries,
 )
@@ -304,6 +304,52 @@ class MonitoringTests(unittest.TestCase):
                 )
             finally:
                 store.close()
+
+    def test_primary_interface_queries_and_sean_resolves_incident_idempotently(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SeanOSStore(Path(directory) / "interface.db")
+            try:
+                monitor = Actor("monitor", frozenset({"IAC"}))
+                plan = plan_alert_deliveries(
+                    [{"code": "DEAD_LETTER", "severity": "CRITICAL", "summary": "failed"}],
+                    route=EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias"),
+                    owner_scope="IAC",
+                )[0]
+                incident_id = store.record_alert_observation(monitor, plan)["incident"]["incident_id"]
+                reader = CommandGateway(store, Actor("chatgpt-reader", frozenset({"IAC"})))
+                self.assertEqual(reader.active_incidents()[0]["incident_id"], incident_id)
+                with self.assertRaisesRegex(AuthorizationError, "Only Sean"):
+                    reader.resolve_incident(incident_id, reason="Synthetic recovery verified")
+
+                sean_gateway = CommandGateway(
+                    store, Actor("sean-chatgpt-interface", frozenset({"IAC"}), is_sean=True)
+                )
+                first = sean_gateway.resolve_incident(
+                    incident_id, reason="Synthetic recovery verified"
+                )
+                replay = sean_gateway.resolve_incident(
+                    incident_id, reason="Synthetic recovery verified"
+                )
+                self.assertEqual(first, replay)
+                self.assertEqual(first["status"], "RESOLVED")
+                self.assertEqual(sean_gateway.active_incidents(), [])
+                with self.assertRaisesRegex(ValidationError, "different evidence"):
+                    sean_gateway.resolve_incident(incident_id, reason="Changed reason")
+                actions = [event["action"] for event in store.audit_events()]
+                self.assertIn("RESOLVE_ALERT_INCIDENT", actions)
+            finally:
+                store.close()
+
+    def test_primary_interface_incidents_reject_non_iac_scope(self):
+        store = SeanOSStore(":memory:")
+        try:
+            gateway = CommandGateway(store, Actor.sean())
+            with self.assertRaisesRegex(AuthorizationError, "isolated to IAC"):
+                gateway.active_incidents(scope="PERSONAL")
+            with self.assertRaisesRegex(AuthorizationError, "isolated to IAC"):
+                gateway.resolve_incident("missing", reason="none", scope="PERSONAL")
+        finally:
+            store.close()
 
     def test_monitor_snapshot_can_record_without_delivering(self):
         with tempfile.TemporaryDirectory() as directory:

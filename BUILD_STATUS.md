@@ -5,22 +5,23 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 17:24 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 17:28 EDT
-- Milestone selected: scope-safe incident reporting
+- Last continuous-goal checkpoint started: 2026-08-20 17:14 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 17:20 EDT
+- Milestone selected: primary-interface incident operations
 - Run state: Completed; scheduled builder paused and continuous goal active
-- Last meaningful milestone: active incidents integrated into scope-safe operational reports
+- Last meaningful milestone: scope-safe incident query and separately authenticated Sean resolution
 - Deployed commit: `1aa8762`
 - Runtime: Online, private, one replica, persistent volume attached
-- Concrete changes: added scope-filtered runtime health, severity-ranked active incidents,
-  incident deltas/facts/recommendations, resolved exclusion, cross-scope tests, and docs
-- Verification: 100 tests passed; schema-v9 release, recovery, and synthetic kill-switch drills passed
+- Concrete changes: exposed active IAC incidents through the primary interface; added
+  Sean-only, reasoned, idempotent resolution; separated ordinary interface and operator
+  credentials; audited rejected operator access; and documented the boundary
+- Verification: 104 tests passed; schema-v9 release and recovery gates passed
 - Real data connected: No
 - Live integrations enabled: No
 - Current blocker: executing the production drill or delivering an alert requires
   Sean's separate exact approval; neither is needed for continued local development
-- Next milestone: expose scoped incident query and Sean-only resolution through the
-  primary named-command interface
+- Next milestone: add a durable, approval-gated alert-delivery outbox and synthetic
+  delivery adapter while keeping all real network delivery disabled
 - Sean action required: No
 
 ## Recent verified milestones
@@ -50,6 +51,8 @@ Every automation run updates it, even when no notification is sent.
     resolution, and reopens recurring conditions without losing historical evidence.
 15. Daily and weekly reports now rank active incidents, show incident deltas, exclude
     resolved incidents, and prevent health/queue/budget leakage across scopes.
+16. The primary interface now queries active IAC incidents and resolves them only with
+    a distinct Sean operator credential; identical replay is safe and changed evidence fails.
 
 ## Update contract
 
