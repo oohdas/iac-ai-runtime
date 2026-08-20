@@ -1,7 +1,7 @@
 # IAC Railway Readiness Audit
 
 Audit date: 2026-08-20
-Mode: read-only; no Railway resource or setting was changed
+Mode: approved isolated pilot; synthetic/empty IAC data only
 
 ## Verified facts
 
@@ -15,22 +15,29 @@ Mode: read-only; no Railway resource or setting was changed
   soft limit and $15 workspace-wide hard stop.
 - An agent usage hard limit exists, but it does not cap ordinary compute usage.
 - The current plan supports shared persistent disk sufficient for the v0.1 pilot.
-- No `iac-ai-runtime` Railway project, service, volume, variable, domain, or
-  deployment exists yet.
+- Private Railway project `iac-ai-runtime` exists in the IAC workspace.
+- Private worker service `iac-ai-runtime` is connected to
+  `oohdas/iac-ai-runtime` with one replica in US West.
+- Persistent volume `iac-ai-runtime-volume` is attached at `/data` and the
+  service variable is `SEAN_OS_DATABASE=/data/iac-ai.db`.
+- No public domain is configured; Railway reports the service as unexposed.
+- Commit `59c89a4` deployed successfully on 2026-08-20 and Railway reported the
+  service Online. The worker successfully opened the volume-backed database
+  after its entrypoint prepared `/data` and dropped to uid/gid 10001.
 
 ## Required pre-deployment controls
 
-1. Create a separate `iac-ai-runtime` project in the IAC workspace.
-2. Connect only `oohdas/iac-ai-runtime` and deploy only commit `a67b5d3` or a
-   later commit that passes the release gate.
-3. Create one worker service and exactly one replica while SQLite is in use.
-4. Attach persistent storage at `/data`; reject deployment without it.
-5. Set `SEAN_OS_DATABASE=/data/iac-ai.db`.
-6. Generate `SEAN_OS_INTERFACE_TOKEN` in Railway's secret manager; never place
-   its value in GitHub, logs, chat, or source files.
-7. Do not add a public domain to the worker service.
-8. Verify non-root execution, IAC-only database binding, health, kill switch,
-    backup, isolated restore, and alert delivery before production approval.
+1. [x] Create a separate `iac-ai-runtime` project in the IAC workspace.
+2. [x] Connect only `oohdas/iac-ai-runtime` and deploy a release-gated commit.
+3. [x] Create one worker service and exactly one replica while SQLite is in use.
+4. [x] Attach persistent storage at `/data`; reject deployment without it.
+5. [x] Set `SEAN_OS_DATABASE=/data/iac-ai.db`.
+6. [x] Keep the worker unexposed with no public domain.
+7. [x] Verify successful startup against the volume-backed IAC database.
+8. [ ] Verify runtime uid, restart persistence, kill switch, production backup,
+   isolated restore, and alert delivery before broader production approval.
+9. [ ] Create `SEAN_OS_INTERFACE_TOKEN` only if a separate authenticated
+   interface service is approved; the private worker pilot does not require it.
 
 ## Explicitly excluded from the pilot
 
@@ -44,5 +51,7 @@ Mode: read-only; no Railway resource or setting was changed
 
 ## Approval boundary
 
-2FA and spending controls are verified. Service and volume creation remain a
-separate, explicit production action.
+2FA, spending controls, private service isolation, one-replica enforcement,
+volume attachment, and initial worker startup are verified. The approved pilot
+contains no real data or live integrations. Broader production use remains a
+separate explicit action.

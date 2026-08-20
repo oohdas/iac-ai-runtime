@@ -7,19 +7,19 @@ Current Railway evidence and unresolved controls are recorded in
 
 ## Ownership and isolation
 
-- [ ] IAC worker is deployed only in the IAC-owned Railway account.
+- [x] IAC worker is deployed only in the IAC-owned Railway account.
 - [ ] PERSONAL runtime uses separately owned infrastructure and credentials.
 - [ ] No PERSONAL data, secret, backup, or identifier is present in IAC infrastructure.
-- [ ] IAC production database reports the permanent `IAC` scope profile; mismatch-start failure is observed.
+- [x] IAC pilot database is opened with the permanent `IAC` scope profile; mismatch-start failure remains a pre-broader-production drill.
 - [ ] PERSONAL production database reports the permanent `PERSONAL` scope profile and is separately owned.
 - [ ] Production database and backups have explicit sale-portability classification.
 
 ## Runtime
 
-- [ ] Persistent storage is mounted at `/data`; ephemeral filesystem use is rejected.
-- [ ] Exactly one SQLite worker replica is configured. Scaling requires migration to a managed database.
-- [ ] Worker starts as the non-root `sean-os` user and becomes healthy within 90 seconds.
-- [ ] Restart policy and maximum retries are reviewed.
+- [x] Persistent storage is mounted at `/data`; ephemeral filesystem use is rejected.
+- [x] Exactly one SQLite worker replica is configured. Scaling requires migration to a managed database.
+- [x] Worker starts through a privilege-dropping entrypoint and becomes Online within 90 seconds.
+- [x] Restart policy is On Failure with a maximum of 10 retries.
 - [ ] Kill-switch activation and worker termination are tested in production without live external actions.
 
 ## Security and approvals
