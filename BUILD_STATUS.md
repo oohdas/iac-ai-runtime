@@ -5,22 +5,22 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last automation run started: 2026-08-20 17:01 EDT
-- Last automation run completed: 2026-08-20 17:04 EDT
-- Milestone selected: non-delivering monitoring persistence workflow
-- Run state: Completed; scheduled builder paused and continuous goal resumed
-- Last meaningful milestone: monitoring CLI can persist scope-safe non-delivering evidence
+- Last continuous-goal checkpoint started: 2026-08-20 17:05 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 17:09 EDT
+- Milestone selected: supervised non-delivering monitoring loop
+- Run state: Completed; scheduled builder paused and continuous goal active
+- Last meaningful milestone: supervised non-delivering monitoring loop verified
 - Deployed commit: `1aa8762`
 - Runtime: Online, private, one replica, persistent volume attached
-- Concrete changes: added an explicit all-or-none monitoring route CLI, IAC/PERSONAL
-  profile selection, durable observation output, fail-closed partial arguments, and tests
-- Verification: 81 tests passed; schema-v8 release, recovery, and synthetic kill-switch drills passed
+- Concrete changes: added an interruptible bounded-cadence monitor, strict scope/profile
+  matching, clean signal shutdown, supervisor-visible failures, lifecycle tests, and runbook
+- Verification: 85 tests passed; schema-v8 release, recovery, and synthetic kill-switch drills passed
 - Real data connected: No
 - Live integrations enabled: No
 - Current blocker: executing the production drill or delivering an alert requires
   Sean's separate exact approval; neither is needed for continued local development
-- Next milestone: add a supervised non-delivering monitoring loop with bounded cadence
-  and clean shutdown behavior
+- Next milestone: integrate bounded monitoring into the single-worker runtime without
+  adding a second Railway replica or enabling external delivery
 - Sean action required: No
 
 ## Recent verified milestones
@@ -40,6 +40,8 @@ Every automation run updates it, even when no notification is sent.
    one immutable Sean-only acknowledgement while preserving audit evidence.
 10. The monitoring CLI can now persist deduplicated observations only when a complete,
     scope-owned, non-secret route contract is supplied; it still cannot deliver alerts.
+11. A supervisor-friendly monitoring loop now runs at bounded cadence, exits cleanly
+    on signals, fails visibly, and remains an optional non-deployed local process.
 
 ## Update contract
 

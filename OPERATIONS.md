@@ -42,6 +42,8 @@ The continuous runtime is implemented and verified locally. It is not yet a 24/7
 34. The local Git repository has no remote; destination and ownership require explicit approval.
 35. A database binds permanently to DEVELOPMENT, IAC, or PERSONAL; reopening under another profile fails closed.
 36. IAC worker/interface processes explicitly require the IAC profile, even for Sean-level actors.
+37. The monitoring loop persists evidence only, enforces matching route/database
+    ownership, and has no network or delivery adapter.
 
 ## Local verification
 
@@ -66,6 +68,20 @@ python3 scripts/monitor_snapshot.py --database iac-ai.db --scope-profile IAC \
 
 Partial route arguments fail closed. This records deduplicated local evidence
 only and cannot send a message.
+
+For supervised continuous local monitoring, use the same complete route contract:
+
+```bash
+python3 scripts/monitor_worker.py --database iac-ai.db --scope-profile IAC \
+  --route-id iac-operator --owner-scope IAC \
+  --destination-kind EMAIL --destination-ref iac-ops-alias \
+  --interval-seconds 30
+```
+
+The loop uses an interruptible wait, exits cleanly on `SIGINT`/`SIGTERM`, and
+lets unexpected failures reach the process supervisor. It is optional local
+code and is not configured as a Railway service. Running it does not authorize
+alert delivery.
 
 Expected evidence:
 
