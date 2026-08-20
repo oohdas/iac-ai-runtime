@@ -67,6 +67,9 @@ Expected evidence:
 - escalation routes produce scope-bound, severity-filtered delivery plans that
   remain unauthorized; `PRODUCTION_DRILL_PLAN.md` defines the approval and evidence
   required for production backup, restore, kill-switch, and recovery testing.
+- identical alert plans receive deterministic IDs, repeats can be suppressed across
+  runs, and acknowledgements produce hashed, timezone-aware local evidence while
+  keeping `delivery_authorized=false`.
 
 ## Continuous verification
 

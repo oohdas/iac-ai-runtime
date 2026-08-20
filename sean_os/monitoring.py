@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
+import hashlib
+import json
 from typing import Any
 
 
@@ -80,9 +83,18 @@ def plan_alert_deliveries(
             raise ValueError("Alert has unsupported severity")
         if _SEVERITY_RANK[severity] < threshold:
             continue
+        identity = {
+            "owner_scope": owner_scope,
+            "route_id": route.route_id,
+            "alert": dict(alert),
+        }
+        plan_id = hashlib.sha256(
+            json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
         plans.append(
             {
                 "schema_version": 1,
+                "plan_id": plan_id,
                 "status": "PLANNED",
                 "delivery_authorized": False,
                 "approval_required": True,
@@ -98,3 +110,50 @@ def plan_alert_deliveries(
             }
         )
     return plans
+
+
+def deduplicate_alert_plans(
+    plans: list[dict[str, Any]], *, previously_seen_plan_ids: set[str] | None = None
+) -> list[dict[str, Any]]:
+    """Suppress repeat evidence by deterministic plan ID without mutating input."""
+    seen = set(previously_seen_plan_ids or ())
+    unique: list[dict[str, Any]] = []
+    for plan in plans:
+        plan_id = plan.get("plan_id")
+        if not isinstance(plan_id, str) or len(plan_id) != 64:
+            raise ValueError("Alert plan requires a deterministic plan_id")
+        if plan_id in seen:
+            continue
+        seen.add(plan_id)
+        unique.append(dict(plan))
+    return unique
+
+
+def acknowledge_alert_plan(
+    plan: dict[str, Any], *, acknowledged_by: str, acknowledged_at: str
+) -> dict[str, Any]:
+    """Create immutable acknowledgement evidence; this never authorizes delivery."""
+    plan_id = plan.get("plan_id")
+    if not isinstance(plan_id, str) or len(plan_id) != 64:
+        raise ValueError("Alert plan requires a deterministic plan_id")
+    if not acknowledged_by.strip():
+        raise ValueError("acknowledged_by is required")
+    try:
+        instant = datetime.fromisoformat(acknowledged_at)
+    except ValueError as exc:
+        raise ValueError("acknowledged_at must be ISO-8601") from exc
+    if instant.tzinfo is None or instant.utcoffset() is None:
+        raise ValueError("acknowledged_at must include a timezone")
+    evidence = {
+        "schema_version": 1,
+        "plan_id": plan_id,
+        "owner_scope": plan.get("owner_scope"),
+        "route_id": plan.get("action_target"),
+        "acknowledged_by": acknowledged_by,
+        "acknowledged_at": instant.isoformat(),
+        "delivery_authorized": False,
+    }
+    evidence["receipt_sha256"] = hashlib.sha256(
+        json.dumps(evidence, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return evidence

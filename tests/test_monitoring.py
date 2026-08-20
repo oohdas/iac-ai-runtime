@@ -1,6 +1,9 @@
 import unittest
 
-from sean_os import EscalationRoute, classify_alerts, plan_alert_deliveries
+from sean_os import (
+    EscalationRoute, acknowledge_alert_plan, classify_alerts,
+    deduplicate_alert_plans, plan_alert_deliveries,
+)
 
 
 class MonitoringTests(unittest.TestCase):
@@ -82,6 +85,44 @@ class MonitoringTests(unittest.TestCase):
     def test_delivery_route_rejects_shared_ownership(self):
         with self.assertRaisesRegex(ValueError, "PERSONAL or IAC"):
             EscalationRoute("shared", "SHARED", "EMAIL", "shared-alias")
+
+    def test_plan_id_is_deterministic_and_deduplicated(self):
+        route = EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias")
+        alerts = [{"code": "DEAD_LETTER", "severity": "CRITICAL", "summary": "one"}]
+        first = plan_alert_deliveries(alerts, route=route, owner_scope="IAC")[0]
+        second = plan_alert_deliveries(alerts, route=route, owner_scope="IAC")[0]
+        self.assertEqual(first["plan_id"], second["plan_id"])
+        self.assertEqual(deduplicate_alert_plans([first, second]), [first])
+        self.assertEqual(
+            deduplicate_alert_plans([first], previously_seen_plan_ids={first["plan_id"]}),
+            [],
+        )
+
+    def test_acknowledgement_is_deterministic_and_never_authorizes_delivery(self):
+        route = EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias")
+        plan = plan_alert_deliveries(
+            [{"code": "STALE_WORKER", "severity": "CRITICAL", "summary": "stale"}],
+            route=route,
+            owner_scope="IAC",
+        )[0]
+        kwargs = {"acknowledged_by": "synthetic-operator", "acknowledged_at": "2030-01-01T12:00:00+00:00"}
+        first = acknowledge_alert_plan(plan, **kwargs)
+        second = acknowledge_alert_plan(plan, **kwargs)
+        self.assertEqual(first, second)
+        self.assertFalse(first["delivery_authorized"])
+        self.assertEqual(len(first["receipt_sha256"]), 64)
+
+    def test_acknowledgement_requires_timezone(self):
+        route = EscalationRoute("iac-operator", "IAC", "EMAIL", "iac-ops-alias")
+        plan = plan_alert_deliveries(
+            [{"code": "BACKUP_FAILED", "severity": "CRITICAL", "summary": "failed"}],
+            route=route,
+            owner_scope="IAC",
+        )[0]
+        with self.assertRaisesRegex(ValueError, "timezone"):
+            acknowledge_alert_plan(
+                plan, acknowledged_by="synthetic-operator", acknowledged_at="2030-01-01T12:00:00"
+            )
 
 
 if __name__ == "__main__":

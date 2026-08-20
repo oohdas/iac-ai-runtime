@@ -25,7 +25,7 @@ PERSONAL infrastructure, records, destinations, and credentials are excluded.
 | Restore | Restore to a new isolated destination | Integrity check, foreign-key check, schema version, sentinel verification | Existing destination would be overwritten or any check fails |
 | Kill switch | Activate switch and submit synthetic `NOOP` work | Work is not claimed; audit event records denial | Any external handler is enabled or work executes |
 | Worker recovery | Stop/restart the single worker while switch remains active | Stale/no-worker alert classifications and clean restart evidence | Multiple workers appear or volume is absent |
-| Alert route | Generate synthetic escalation envelopes only | Correct severity filtering, IAC route ownership, `delivery_authorized=false` | A message is delivered or a secret appears in evidence |
+| Alert route | Generate synthetic escalation envelopes only | Correct severity filtering, IAC route ownership, deterministic deduplication, hashed acknowledgement, `delivery_authorized=false` | A message is delivered or a secret appears in evidence |
 | Recovery | Clear switch, process one synthetic `NOOP`, then return to idle | Successful work receipt, healthy snapshot, no dead letters | Integrity or policy check fails |
 
 ## Pass criteria

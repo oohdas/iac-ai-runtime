@@ -5,22 +5,22 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last automation run started: 2026-08-20 16:45 EDT
-- Last automation run completed: 2026-08-20 16:47 EDT
-- Milestone selected: local alert-delivery contract and production drill plan
+- Last automation run started: 2026-08-20 16:50 EDT
+- Last automation run completed: 2026-08-20 16:52 EDT
+- Milestone selected: local escalation acknowledgement and deduplication evidence
 - Run state: Completed
-- Last meaningful milestone: scope-bound alert-delivery contract and production drill plan verified
+- Last meaningful milestone: deterministic escalation deduplication and acknowledgement evidence verified
 - Deployed commit: `1aa8762`
 - Runtime: Online, private, one replica, persistent volume attached
-- Concrete changes: added scope-owned escalation routes, severity-filtered unauthorized
-  delivery envelopes, cross-scope rejection tests, and an approval-bounded production drill plan
-- Verification: 75 tests passed; release, recovery, and synthetic kill-switch drills passed
+- Concrete changes: added deterministic alert-plan IDs, repeat suppression across runs,
+  timezone-aware hashed acknowledgement receipts, tests, and drill/runbook evidence
+- Verification: 78 tests passed; release, recovery, and synthetic kill-switch drills passed
 - Real data connected: No
 - Live integrations enabled: No
 - Current blocker: executing the production drill or delivering an alert requires
   Sean's separate exact approval; neither is needed for continued local development
-- Next milestone: implement an auditable local acknowledgement and deduplication model
-  for escalation envelopes
+- Next milestone: add durable scoped storage for alert observations and acknowledgement
+  receipts without enabling external delivery
 - Sean action required: No
 
 ## Recent verified milestones
@@ -34,6 +34,8 @@ Every automation run updates it, even when no notification is sent.
    budget, and backup escalation classes without sending alerts.
 7. Alert routing now fails closed across ownership scopes, filters by severity, and
    produces approval-gated plans only; the production drill has explicit pass/abort criteria.
+8. Alert plans now deduplicate deterministically and generate hashed, timezone-aware
+   acknowledgement evidence without authorizing delivery.
 
 ## Update contract
 
