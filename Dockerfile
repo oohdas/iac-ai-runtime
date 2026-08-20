@@ -10,5 +10,4 @@ COPY scripts ./scripts
 RUN useradd --system --uid 10001 sean-os && mkdir -p /data && chown sean-os:sean-os /data
 USER sean-os
 
-VOLUME ["/data"]
 CMD ["sh", "-c", "python scripts/worker.py --database \"$SEAN_OS_DATABASE\""]

@@ -29,8 +29,16 @@ def main() -> int:
         raise SystemExit("bridge contract changed without an explicit version/hash update")
     checks.append({"check": "bridge_contract_sha256", "passed": True, "sha256": digest})
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
-    if "USER sean-os" not in dockerfile or "VOLUME [\"/data\"]" not in dockerfile:
-        raise SystemExit("container must run non-root with explicit persistent data volume")
+    required_container_invariants = (
+        "SEAN_OS_DATABASE=/data/sean-os.db",
+        "mkdir -p /data",
+        "chown sean-os:sean-os /data",
+        "USER sean-os",
+    )
+    if any(invariant not in dockerfile for invariant in required_container_invariants):
+        raise SystemExit("container must run non-root with a writable /data mount point")
+    if 'VOLUME ["/data"]' in dockerfile:
+        raise SystemExit("Railway volumes must be attached by the platform, not declared in Dockerfile")
     checks.append({"check": "container_safety_invariants", "passed": True})
     workflow = (ROOT / ".github/workflows/verify.yml").read_text(encoding="utf-8")
     if "contents: read" not in workflow or "docker build" not in workflow:
