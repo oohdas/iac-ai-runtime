@@ -13,11 +13,11 @@ def main() -> None:
         sean = Actor.sean()
         goal = store.create_record(sean, "GOAL", "IAC", {"name": "2031 exit readiness"}, source="synthetic-status")
         project = store.create_record(sean, "PROJECT", "IAC", {"name": "Canonical database", "goal_id": goal}, source="synthetic-status")
-        store.transition_project(sean, project, "ACTIVE", "Milestone 12 implementation")
+        store.transition_project(sean, project, "ACTIVE", "Milestone 13 implementation")
         package = store.sale_export_package(sean)
         status = {
-            "milestone": 12,
-            "name": "Secret-safe export and scoped primary-interface CRUD",
+            "milestone": 13,
+            "name": "Portfolio intelligence and local repository delivery",
             "state": "ACTIVE",
             "integrity": store.integrity_check(),
             "synthetic_records": len(store.list_records(sean)),

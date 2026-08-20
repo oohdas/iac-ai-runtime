@@ -37,6 +37,9 @@ The continuous runtime is implemented and verified locally. It is not yet a 24/7
 29. Customer contact remains a requestable approval boundary, not an executable v0.1 action.
 30. Secret-like keys and token/private-key patterns are rejected on create/update and rescanned before sale export.
 31. Interface audit queries are scope-filtered; IAC principals cannot retrieve PERSONAL traces.
+32. Portfolio capacity changes may pause agent-created work only; human projects receive recommendations.
+33. Rejected revenue hypotheses are retained with reopen triggers and no external action authority.
+34. The local Git repository has no remote; destination and ownership require explicit approval.
 
 ## Local verification
 
@@ -87,4 +90,4 @@ Use `SeanOSStore.set_kill_switch(Actor.sean(), True)`. Existing infrastructure s
 
 ## Next implementation gap
 
-Secret-safe sale export and scoped primary-interface CRUD/query/audit coverage now pass locally. The next safe milestone is deeper Chief of Staff portfolio semantics and Revenue Agent opportunity-class ROI comparison. External binding, production identity, Railway creation, persistent-volume setup, paid services, live models, or real connections remain Sean-approval-gated.
+Chief of Staff and Revenue portfolio semantics now pass locally, and the source has a reviewable local Git history with no remote. The remaining acceptance gates are production-owned: correct repository destination, live Claude/Claude Code delivery workflow, separated cloud environments, identity/secrets, persistent storage, encryption, alerts, and deployment. These require Sean's explicit production choices and approval.

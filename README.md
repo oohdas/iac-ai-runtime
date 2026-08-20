@@ -1,6 +1,6 @@
 # Sean OS v0.1 Core
 
-Local Milestone 12 prototype for the policy-controlled Sean OS runtime.
+Local Milestone 13 prototype for the policy-controlled Sean OS runtime.
 
 This build intentionally uses Python's standard library and SQLite so it can be tested without accounts, paid services, production credentials, or real PERSONAL/IAC data.
 
@@ -51,6 +51,11 @@ This build intentionally uses Python's standard library and SQLite so it can be 
 - Recursive secret-pattern rejection on record create/update and fail-closed sale-export scanning
 - Scoped ChatGPT-interface create, retrieve, list, update, and link operations across IAC core records
 - Scope-filtered audit retrieval that prevents PERSONAL audit disclosure to the IAC interface
+- Chief of Staff portfolio scoring, capacity allocation, low-fit challenge, and safe agent-only pausing
+- Revenue comparison across outbound, existing/inactive customers, quotes, inbound, and new channels
+- Capacity-adjusted expected return using margin, probability, cost, Sean time, strategic fit, and evidence
+- Retained rejected revenue hypotheses with explicit reopen triggers
+- Local Git repository and review artifact; no remote or external push is configured
 - Per-scope monthly budgets with cost reservation, settlement, usage events, and fail-closed blocking
 - Worker heartbeats and runtime health reporting with stale-worker, dead-letter, integrity, and kill-switch checks
 - Synthetic seed data and automated tests
