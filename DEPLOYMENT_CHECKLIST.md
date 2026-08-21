@@ -26,6 +26,9 @@ Current Railway evidence and unresolved controls are recorded in
   default, so it does not require another SQLite-connected service or replica.
 - [x] Container monitoring configuration is all-or-none and fails startup on
   partial, malformed, unsafe, or unbounded values; Railway remains unconfigured.
+- [x] The local continuous candidate schedules one bounded daily IAC portfolio review
+  before its report; it has no external effect, consumes no approval, may pause only
+  agent-owned projects, and leaves projects with incomplete metrics unchanged.
 - [x] Worker starts through a privilege-dropping entrypoint, becomes Online within
   90 seconds, and PID 1 runs as uid/gid 10001 with no effective capabilities.
 - [x] Restart policy is On Failure with a maximum of 10 retries.

@@ -28,6 +28,9 @@ both remain default-off and injectable in tests.
 - Bounded Chief of Staff planning that converts an authorized IAC goal into an ACTIVE project and ordered tasks
 - Evidence-based project continuation, pausing, and self-cancellation with preserved rationale and reopen triggers
 - Durable queue handlers for Chief of Staff project creation and evaluation
+- Automatic bounded daily portfolio maintenance that ranks current IAC work before
+  reporting, pauses only agent-owned low-fit/over-capacity projects, and surfaces
+  missing metrics without changing those projects
 - Automatic daily and Monday-weekly local operational reports, dispatched exactly once per period
 - Attention routing for approvals, budget blocks, policy blocks, and dead-letter work
 - Non-root container packaging and a Railway worker manifest with bounded restart policy
@@ -99,7 +102,9 @@ both remain default-off and injectable in tests.
 - Local bearer-authenticated HTTP boundary with separate interface/operator credentials, body limits, no-store responses, and audited authentication failures
 - Enforced effective/expiry timestamps, confidence, retention rules, and derived currentness on every record
 - Standard material-action audit envelope covering evidence, model/tool, cost, outcome, and rollback status
-- Morning/weekly reports with explicit fact, estimate, inference, and recommendation sections
+- Morning/weekly reports with explicit fact, estimate, inference, and recommendation
+  sections plus completed work, project changes, active approvals, approval outcomes,
+  deadline risks, spend, and score-ranked priorities
 - Passing end-to-end scenario from idea capture through research, approval boundary, Sean decision, and report
 - Recursive secret-pattern rejection on record create/update and fail-closed sale-export scanning
 - Scoped ChatGPT-interface create, retrieve, list, update, and link operations across IAC core records

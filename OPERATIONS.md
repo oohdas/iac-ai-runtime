@@ -175,6 +175,14 @@ customer action, or paid model service is connected.
     secret or claiming/downloading/decrypting/restoring. `scripts/restore_worker.py` is a
     separate default-off one-shot command and is intentionally absent from the container
     entrypoint and continuous worker. Follow `ISOLATED_RESTORE_RUNBOOK.md`.
+67. The always-on worker now dispatches a bounded internal Chief of Staff portfolio
+    maintenance task once each Toronto calendar day at priority 40, before the priority-50
+    morning report. It reviews at most 100 current IAC ACTIVE/INCUBATOR projects, ranks only
+    complete bounded metrics, and may pause only agent-owned work. Human-owned or legacy
+    projects with missing/invalid metrics remain unchanged and become report attention.
+    The following report distinguishes active approvals from terminal outcomes and includes
+    completed durable work, lifecycle changes, deadline risks, spend, and ranked focus. Both
+    actions remain local-only, restart-safe, idempotently scheduled, and externally inert.
 
 ## Local verification
 

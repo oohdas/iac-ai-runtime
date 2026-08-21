@@ -782,26 +782,145 @@ class SeanOSCoreTests(unittest.TestCase):
         monday=datetime(2030, 1, 7, 8, 0, tzinfo=ZoneInfo("America/Toronto"))
         first=scheduler.tick(monday)
         second=scheduler.tick(monday)
-        self.assertEqual(len(first), 2)
+        self.assertEqual(len(first), 3)
         self.assertEqual(second, [])
         rows=self.store.connection.execute(
-            "SELECT task_type, payload FROM work_queue ORDER BY created_at, id"
+            "SELECT task_type, payload, priority FROM work_queue ORDER BY priority, created_at, id"
         ).fetchall()
-        self.assertEqual(len(rows), 2)
-        self.assertTrue(all(row["task_type"] == "GENERATE_OPERATIONAL_REPORT" for row in rows))
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(rows[0]["task_type"], "CHIEF_MAINTAIN_PORTFOLIO")
+        self.assertEqual(rows[0]["priority"], 40)
+        self.assertEqual(
+            [row["task_type"] for row in rows[1:]],
+            ["GENERATE_OPERATIONAL_REPORT", "GENERATE_OPERATIONAL_REPORT"],
+        )
+        self.assertTrue(all(row["priority"] == 50 for row in rows[1:]))
 
     def test_scheduler_dispatch_is_atomic_and_audited(self):
         scheduler=LocalScheduler(self.store, self.iac_agent)
         tuesday=datetime(2030, 1, 8, 8, 0, tzinfo=ZoneInfo("America/Toronto"))
-        work_id=scheduler.tick(tuesday)[0]
+        dispatched=scheduler.tick(tuesday)
+        self.assertEqual(len(dispatched), 2)
+        work_id=dispatched[0]
         mapping=self.store.connection.execute(
-            "SELECT work_id FROM schedule_dispatches WHERE schedule_name='daily-operational-report'"
+            "SELECT work_id FROM schedule_dispatches WHERE schedule_name='daily-portfolio-maintenance'"
         ).fetchone()[0]
         self.assertEqual(mapping, work_id)
         self.assertTrue(any(
             e["affected_record_id"] == work_id and e["policy_reason"] == "Scheduled work dispatched"
             for e in self.store.audit_events()
         ))
+
+    def test_scheduled_portfolio_maintenance_is_internal_bounded_and_reported(self):
+        goal=self.store.create_record(self.iac_agent, "GOAL", "IAC", {"name":"Exit"})
+        chief=ChiefOfStaff(self.store, self.iac_agent)
+        high=chief.create_project(
+            goal, "High fit", [{"name":"Measure", "done_when":"Evidence"}],
+            success_metric="score", stop_condition="score low",
+            portfolio_metrics={"strategic_fit":.9,"expected_value":.9,"urgency":.8,
+                               "confidence":.9,"effort":.2,"risk":.1},
+        )["project_id"]
+        low=chief.create_project(
+            goal, "Low fit", [{"name":"Measure", "done_when":"Evidence"}],
+            success_metric="score", stop_condition="score low",
+            portfolio_metrics={"strategic_fit":.1,"expected_value":.2,"urgency":.1,
+                               "confidence":.5,"effort":.8,"risk":.8},
+        )["project_id"]
+        human_without_metrics=self.store.create_record(
+            self.sean, "PROJECT", "IAC", {"name":"Human project awaiting metrics"}
+        )
+        scheduler=LocalScheduler(self.store, self.iac_agent)
+        tuesday=datetime(2030, 1, 8, 8, 0, tzinfo=ZoneInfo("America/Toronto"))
+        scheduler.tick(tuesday)
+        work=self.store.claim_work(self.iac_agent, "worker-1")
+        self.assertEqual(work["task_type"], "CHIEF_MAINTAIN_PORTFOLIO")
+        result=chief_of_staff_registry(self.store, self.iac_agent).execute(
+            self.store, self.iac_agent, work
+        )
+        self.store.complete_work(self.iac_agent, work["id"], "worker-1", result)
+        self.assertEqual(result["reviewed_project_count"], 2)
+        self.assertEqual(result["missing_metrics_project_ids"], [human_without_metrics])
+        self.assertIn(low, result["autonomously_paused"])
+        self.assertFalse(result["external_effect"])
+        self.assertFalse(result["approval_consumed"])
+        states={row["record_id"]:row["state"] for row in self.store.connection.execute(
+            "SELECT record_id, state FROM project_state"
+        )}
+        self.assertEqual(states[high], "ACTIVE")
+        self.assertEqual(states[low], "PAUSED")
+        self.assertEqual(states[human_without_metrics], "INCUBATOR")
+        report_work=self.store.claim_work(self.iac_agent, "worker-1")
+        self.assertEqual(report_work["task_type"], "GENERATE_OPERATIONAL_REPORT")
+        report=chief_of_staff_registry(self.store, self.iac_agent).execute(
+            self.store, self.iac_agent, report_work
+        )
+        self.assertTrue(any(
+            item["task_type"] == "CHIEF_MAINTAIN_PORTFOLIO"
+            and low in item["autonomously_paused"]
+            and human_without_metrics in item["missing_metrics_project_ids"]
+            for item in report["overnight_work"]
+        ))
+        self.assertTrue(any(
+            item["project_id"] == low and item["state"] == "PAUSED"
+            for item in report["project_changes"]
+        ))
+        self.assertTrue(any(
+            item.get("project_id") == human_without_metrics
+            and item["recommendation"] == "Add bounded portfolio metrics before autonomous ranking"
+            for item in report["recommendations"]
+        ))
+
+    def test_report_surfaces_active_approvals_deadlines_and_ranked_focus(self):
+        goal=self.store.create_record(self.iac_agent, "GOAL", "IAC", {"name":"Focus"})
+        chief=ChiefOfStaff(self.store, self.iac_agent)
+        low=chief.create_project(
+            goal, "Lower priority", [{"name":"Later", "done_when":"Done"}],
+            success_metric="score", stop_condition="score low",
+            portfolio_metrics={"strategic_fit":.4,"expected_value":.4,"urgency":.3,
+                               "confidence":.5,"effort":.6,"risk":.5},
+        )["project_id"]
+        high=chief.create_project(
+            goal, "Highest priority", [{"name":"Soon", "done_when":"Done"}],
+            success_metric="score", stop_condition="score low",
+            portfolio_metrics={"strategic_fit":1.0,"expected_value":.9,"urgency":.9,
+                               "confidence":.9,"effort":.1,"risk":.1},
+        )["project_id"]
+        task=next(
+            item for item in self.store.list_records(self.iac_agent, "TASK")
+            if item["payload"]["project_id"] == high
+        )
+        due=(datetime.now(timezone.utc)+timedelta(hours=12)).isoformat()
+        changed={**task["payload"], "due_at":due, "status":"BLOCKED"}
+        self.store.update_record(
+            self.iac_agent, task["id"], changed, expected_version=task["version"]
+        )
+        active=self.store.request_approval(
+            self.iac_agent, action_type="SEND_CUSTOMER_MESSAGE", target="customer:synthetic",
+            scope="IAC", max_impact="one synthetic draft",
+            expires_at=(datetime.now(timezone.utc)+timedelta(hours=2)).isoformat(),
+        )
+        denied=self.store.request_approval(
+            self.iac_agent, action_type="SEND_CUSTOMER_MESSAGE", target="customer:denied",
+            scope="IAC", max_impact="none",
+            expires_at=(datetime.now(timezone.utc)+timedelta(hours=1)).isoformat(),
+        )
+        self.store.decide_approval(
+            Actor.sean(), denied, approve=False, reason="Synthetic report filtering test"
+        )
+        report=ReportingService(self.store, self.iac_agent).generate(
+            "DAILY", "IAC", period_key="2030-01-08-detail"
+        )
+        self.assertEqual(report["top_priorities"][0]["id"], high)
+        self.assertNotEqual(report["top_priorities"][0]["id"], low)
+        self.assertEqual([item["record_id"] for item in report["active_approvals"]], [active])
+        self.assertNotIn(denied, [item["record_id"] for item in report["active_approvals"]])
+        self.assertTrue(any(
+            item["record_id"] == denied and item["status"] == "DENIED"
+            for item in report["approval_outcomes"]
+        ))
+        self.assertEqual(report["deadlines_at_risk"][0]["task_id"], task["id"])
+        self.assertEqual(report["deadlines_at_risk"][0]["risk"], "BLOCKED")
+        self.assertEqual(report["headline"], "ATTENTION REQUIRED")
 
     def test_revenue_agent_qualifies_synthetic_opportunity_without_outreach(self):
         goal=self.store.create_record(self.iac_agent, "GOAL", "IAC", {"name":"Revenue quality"})
@@ -1324,7 +1443,7 @@ class SeanOSCoreTests(unittest.TestCase):
         )
         self.assertEqual(evaluation["recommendation"], "ADVANCE")
         self.assertTrue(any(a["record_id"] == approval["approval_id"] and a["status"] == "DENIED"
-                            for a in report["active_approvals"]))
+                            for a in report["approval_outcomes"]))
         self.assertEqual(
             self.store.connection.execute(
                 "SELECT COUNT(*) FROM relationships WHERE relationship_type='EVIDENCE_FOR'"

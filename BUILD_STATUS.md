@@ -5,44 +5,42 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-21 00:06 EDT
-- Last continuous-goal checkpoint completed: 2026-08-21 00:26 EDT
-- Milestone selected: close the local isolated-restore control gap with a distinct
-  least-privilege identity and a default-off, non-overwriting restore path
-- Run state: Local isolated-restore milestone complete and verified; production remains
-  healthy and unchanged at schema v17
-- Last meaningful milestone: local schema v18 closes the isolated-restore control gap
-  without creating a key, configuring a secret, using a network, or restoring production
+- Last continuous-goal checkpoint started: 2026-08-21 00:36 EDT
+- Last continuous-goal checkpoint completed: 2026-08-21 00:37 EDT
+- Milestone selected: make the always-on Chief of Staff maintain the IAC portfolio before
+  producing a complete daily operational report
+- Run state: Continuous internal portfolio-maintenance milestone complete and verified;
+  production remains healthy and unchanged at schema v17
+- Last meaningful milestone: the local candidate now executes bounded daily portfolio
+  maintenance before reporting, with fail-safe handling for human-owned and legacy work
 - Deployed commit: `c9a400d1a97fcf656ae90ec5f3363864f16f3b22`
 - Runtime: Online on deployment `56f211f5-7497-46fd-a1f3-59e3ac8e9ff3`, private,
   one replica, original persistent `/data` volume attached
 - Remote main: `c9a400d`; Railway reports the exact commit as a successful deployment
-- Concrete changes: a distinct non-creating read-only restore identity now excludes every
-  write/delete/admin/retention-mutation authority; the exact upload receipt, object version,
-  cipher/plain hashes, retention, isolated target, four-hour window, and CAD ceiling bind a
-  separate restore plan. Schema v18 durably stages no-action preflight, exact single-use
-  Sean authorization, bounded leases/retries, kill-switch guards, failure health, and a
-  terminal reconciliation hold. The exact-version read port writes only a new private file;
-  authenticated decryption must produce a new isolated SQLite database with integrity,
-  foreign keys, schema, and IAC profile verified. A hash-bound state-only operator and
-  separate one-shot worker preserve the approval/key/secret/execution gates; the continuous
-  container entrypoint has no restore path. The restore runbook records abort and evidence
-  rules without authorizing production action.
-- Verification: canonical local release gate passes compilation, 251 automated tests,
+- Concrete changes: the Toronto-local scheduler now durably dispatches one priority-40
+  Chief of Staff maintenance task before priority-50 daily/weekly reports. Maintenance
+  reviews no more than 100 current IAC ACTIVE/INCUBATOR projects, ranks only complete
+  bounded metrics, and may pause only agent-owned low-fit or over-capacity work. Human-owned
+  or legacy projects with absent/invalid metrics remain unchanged and surface as attention.
+  Reports now distinguish active approvals from terminal outcomes and include completed
+  work, lifecycle changes, deadline risks, spend, and score-ranked priorities since the
+  prior report. Both paths are local-only, consume no approval, and cause no external effect.
+- Verification: canonical local release gate passes compilation, 253 automated tests,
   bridge/container/workflow safety, v17→v18 guarded migration, schema-v18 manifested
-  recovery, least-privilege restore contract, durable exact authorization, kill-switch,
-  bounded retry and health behavior, exact-version provider reads, private authenticated
-  decryption, state-only operator, one-shot worker, and reconciliation invariants. Focused
-  restore/migration/core/monitoring tests also pass. Production deployment evidence remains
-  the previously verified schema-v17 deployment `56f211f5`; no production check was needed.
+  recovery, all isolated backup/restore controls, continuous scheduling, missing-metric
+  fail-safe behavior, human-ownership protection, active-versus-terminal approval semantics,
+  deadline risk detection, and complete morning-report coverage. Production deployment
+  evidence remains the previously verified schema-v17 deployment `56f211f5`; no production
+  check was needed.
 - Real data connected: No
 - Live integrations enabled: No
-- Current blocker: production remains at `c9a400d`/schema v17; the local v18 candidate is
-  not pushed or deployed. No synthetic activation, transfer authorization, application key,
-  managed value, upload, restore staging, restore key, download, or restore exists.
-- Next milestone: preserve the verified candidate as a local commit, then prepare an exact
-  morning push/deployment approval package. Production synthetic staging remains a later,
-  separately approved mutation after the v18 deployment is verified healthy.
+- Current blocker: production remains at `c9a400d`/schema v17; the local schema-v18 plus
+  continuous-portfolio candidate is not pushed or deployed. No synthetic activation,
+  transfer authorization, application key, managed value, upload, restore staging, restore
+  key, download, or restore exists.
+- Next milestone: prepare an exact morning push/deployment approval package for the verified
+  local candidate. Production synthetic staging remains a later, separately approved
+  mutation after v18 is verified healthy.
 - Sean action required: none during unattended local work. After waking, Sean must approve
   the exact candidate commit before any push/deployment. Production staging, writer key,
   upload managed values, upload, restore staging, restore key, restore managed values,
@@ -192,6 +190,13 @@ Every automation run updates it, even when no notification is sent.
     hash-bound operator changes state only, and the one-shot worker remains absent from the
     continuous container path. All 251 tests and the canonical gate pass; production is
     unchanged and no key, secret, network, download, decryption, or restore occurred.
+46. The always-on local worker now dispatches one bounded internal Chief of Staff portfolio
+    maintenance task before each daily report. It ranks complete metrics, pauses only
+    agent-owned low-fit/over-capacity projects, and leaves human-owned or incomplete-metric
+    work unchanged while surfacing it for attention. Reports now distinguish active approval
+    requests from terminal outcomes and include completed work, project changes, deadline
+    risks, spend, and ranked priorities. All 253 tests and the canonical release gate pass;
+    production is unchanged and no external effect or approval was consumed.
 
 ## Update contract
 

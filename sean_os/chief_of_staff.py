@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -113,8 +114,8 @@ class ChiefOfStaff:
         self, project_ids: list[str], *, capacity_limit: int = 3,
         low_fit_threshold: float = .35,
     ) -> dict[str, Any]:
-        if not project_ids or len(project_ids) > 20:
-            raise ValidationError("Portfolio review requires 1-20 projects")
+        if not project_ids or len(project_ids) > 100:
+            raise ValidationError("Portfolio review requires 1-100 projects")
         if capacity_limit < 1 or capacity_limit > 10 or not 0 <= low_fit_threshold <= 1:
             raise ValidationError("Portfolio capacity or low-fit threshold is invalid")
         ranked=[]
@@ -166,6 +167,61 @@ class ChiefOfStaff:
             self.store.link_records(self.actor, decision_id, "GOVERNS", item["project_id"])
         return {"decision_id":decision_id, "ranked_projects":ranked,
                 "autonomously_paused":changed}
+
+    def maintain_portfolio(
+        self, period_key: str, *, capacity_limit: int = 3,
+        low_fit_threshold: float = .35,
+    ) -> dict[str, Any]:
+        """Run one bounded scheduled review over current ACTIVE/INCUBATOR IAC work."""
+        if (
+            not isinstance(period_key, str) or not 1 <= len(period_key) <= 40
+            or any(character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:-"
+                   for character in period_key)
+        ):
+            raise ValidationError("Portfolio maintenance period key is invalid")
+        rows=self.store.connection.execute(
+            """SELECT r.id, r.payload, ps.state FROM records r
+               JOIN project_state ps ON ps.record_id=r.id
+               WHERE r.owner_scope='IAC' AND r.entity_type='PROJECT'
+               AND ps.state IN ('ACTIVE','INCUBATOR')
+               ORDER BY r.created_at, r.id LIMIT 101"""
+        ).fetchall()
+        if len(rows) > 100:
+            raise ValidationError("Portfolio maintenance exceeds the bounded project limit")
+        required={"strategic_fit","expected_value","urgency","confidence","effort","risk"}
+        eligible=[]; missing=[]
+        for row in rows:
+            payload=json.loads(row["payload"])
+            metrics=payload.get("portfolio_metrics")
+            valid=(
+                isinstance(metrics, dict) and set(metrics) == required
+                and all(
+                    not isinstance(value, bool)
+                    and isinstance(value, (int, float))
+                    and 0 <= float(value) <= 1
+                    for value in metrics.values()
+                )
+            )
+            (eligible if valid else missing).append(row["id"])
+        review=(
+            self.review_portfolio(
+                eligible, capacity_limit=capacity_limit,
+                low_fit_threshold=low_fit_threshold,
+            )
+            if eligible else
+            {"decision_id":None, "ranked_projects":[], "autonomously_paused":[]}
+        )
+        return {
+            "kind":"CHIEF_PORTFOLIO_MAINTENANCE",
+            "period_key":period_key,
+            "reviewed_project_count":len(eligible),
+            "missing_metrics_project_ids":missing,
+            "decision_id":review["decision_id"],
+            "ranked_projects":review["ranked_projects"],
+            "autonomously_paused":review["autonomously_paused"],
+            "external_effect":False,
+            "approval_consumed":False,
+        }
 
 
 def chief_of_staff_registry(store: SeanOSStore, actor: Actor) -> ActionRegistry:
@@ -306,6 +362,16 @@ def chief_of_staff_registry(store: SeanOSStore, actor: Actor) -> ActionRegistry:
         ),
         lambda payload: chief.review_portfolio(
             payload["project_ids"], capacity_limit=int(payload.get("capacity_limit", 3)),
+            low_fit_threshold=float(payload.get("low_fit_threshold", .35)),
+        ),
+    )
+    registry.register(
+        ActionPolicy(
+            "CHIEF_MAINTAIN_PORTFOLIO", frozenset({"IAC"}), False, True, False, False,
+        ),
+        lambda payload: chief.maintain_portfolio(
+            payload["period_key"],
+            capacity_limit=int(payload.get("capacity_limit", 3)),
             low_fit_threshold=float(payload.get("low_fit_threshold", .35)),
         ),
     )

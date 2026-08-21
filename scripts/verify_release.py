@@ -668,6 +668,63 @@ def main() -> int:
             "restore operator must remain hash-bound, state-only, bounded, and no-network"
         )
     checks.append({"check": "hash_bound_state_only_restore_operator", "passed": True})
+    chief_source = (ROOT / "sean_os" / "chief_of_staff.py").read_text(
+        encoding="utf-8"
+    )
+    scheduler_source = (ROOT / "sean_os" / "scheduler.py").read_text(
+        encoding="utf-8"
+    )
+    reporting_source = (ROOT / "sean_os" / "reporting.py").read_text(
+        encoding="utf-8"
+    )
+    required_continuous_portfolio_invariants = (
+        "def maintain_portfolio(",
+        "AND ps.state IN ('ACTIVE','INCUBATOR')",
+        "Portfolio maintenance exceeds the bounded project limit",
+        '"missing_metrics_project_ids":missing',
+        '"autonomously_paused":review["autonomously_paused"]',
+        '"external_effect":False',
+        '"approval_consumed":False',
+        '"CHIEF_MAINTAIN_PORTFOLIO"',
+    )
+    required_scheduler_invariants = (
+        '"daily-portfolio-maintenance"',
+        '"CHIEF_MAINTAIN_PORTFOLIO", {"period_key":day}, 40',
+        '"GENERATE_OPERATIONAL_REPORT", {"cadence":"DAILY", "period_key":day}, 50',
+        '"weekly-operational-report"',
+        '"priority":priority',
+    )
+    required_report_invariants = (
+        "AND status IN ('PENDING','APPROVED')",
+        "AND expires_at>?",
+        '"portfolio_score":score',
+        '"approval_outcomes":approval_outcomes',
+        '"overnight_work":completed_work',
+        '"project_changes":project_changes',
+        '"deadlines_at_risk":deadlines',
+        '"invalid_deadline_task_ids":sorted(set(invalid_deadline_task_ids))',
+        '"Completed durable work since prior report"',
+        '"Promises or deadlines at risk"',
+        '"delivery": "LOCAL_ONLY"',
+    )
+    continuous_sources = chief_source + scheduler_source + reporting_source
+    if any(
+        item not in chief_source for item in required_continuous_portfolio_invariants
+    ) or any(
+        item not in scheduler_source for item in required_scheduler_invariants
+    ) or any(
+        item not in reporting_source for item in required_report_invariants
+    ) or any(
+        forbidden in continuous_sources for forbidden in forbidden_backup_networking
+    ):
+        raise SystemExit(
+            "continuous portfolio maintenance and reporting must remain bounded, internal, and no-network"
+        )
+    if scheduler_source.index('"CHIEF_MAINTAIN_PORTFOLIO"') > scheduler_source.index(
+        '"GENERATE_OPERATIONAL_REPORT"'
+    ) or "scheduler.tick()" not in worker_source:
+        raise SystemExit("portfolio maintenance must run before reports in the always-on worker")
+    checks.append({"check": "continuous_internal_portfolio_maintenance", "passed": True})
     command_source = (ROOT / "sean_os" / "commands.py").read_text(encoding="utf-8")
     required_backup_interface_invariants = (
         "backup-transfers",

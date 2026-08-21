@@ -18,17 +18,36 @@ class LocalScheduler:
 
     def tick(self, at: datetime | None = None) -> list[str]:
         local = (at or datetime.now(self.timezone)).astimezone(self.timezone)
-        schedules = [("daily-operational-report", local.strftime("%Y-%m-%d"), "DAILY")]
+        day=local.strftime("%Y-%m-%d")
+        schedules = [
+            (
+                "daily-portfolio-maintenance", day,
+                "CHIEF_MAINTAIN_PORTFOLIO", {"period_key":day}, 40,
+            ),
+            (
+                "daily-operational-report", day,
+                "GENERATE_OPERATIONAL_REPORT", {"cadence":"DAILY", "period_key":day}, 50,
+            ),
+        ]
         if local.weekday() == 0:
-            schedules.append(("weekly-operational-report", local.strftime("%G-W%V"), "WEEKLY"))
+            week=local.strftime("%G-W%V")
+            schedules.append((
+                "weekly-operational-report", week,
+                "GENERATE_OPERATIONAL_REPORT", {"cadence":"WEEKLY", "period_key":week}, 50,
+            ))
         dispatched=[]
-        for name, period, cadence in schedules:
-            work_id = self._dispatch_once(name, period, cadence)
+        for name, period, task_type, payload, priority in schedules:
+            work_id = self._dispatch_once(
+                name, period, task_type=task_type, payload=payload, priority=priority
+            )
             if work_id:
                 dispatched.append(work_id)
         return dispatched
 
-    def _dispatch_once(self, schedule_name: str, period_key: str, cadence: str) -> str | None:
+    def _dispatch_once(
+        self, schedule_name: str, period_key: str, *, task_type: str,
+        payload: dict[str, str], priority: int,
+    ) -> str | None:
         self.store._authorize(self.actor, "IAC", (), "write")
         work_id=str(uuid.uuid4()); stamp=now()
         try:
@@ -44,8 +63,8 @@ class LocalScheduler:
                 """INSERT INTO work_queue
                    (id, task_type, owner_scope, payload, status, priority, max_attempts,
                     available_at, created_at, updated_at)
-                   VALUES (?, 'GENERATE_OPERATIONAL_REPORT', 'IAC', ?, 'QUEUED', 50, 3, ?, ?, ?)""",
-                (work_id, json.dumps({"cadence":cadence, "period_key":period_key}, sort_keys=True),
+                   VALUES (?, ?, 'IAC', ?, 'QUEUED', ?, 3, ?, ?, ?)""",
+                (work_id, task_type, json.dumps(payload, sort_keys=True), priority,
                  stamp, stamp, stamp),
             )
             self.store.connection.execute(
@@ -58,6 +77,7 @@ class LocalScheduler:
             raise
         self.store.record_policy_decision(
             self.actor, work_id, True, "Scheduled work dispatched",
-            {"schedule_name":schedule_name, "period_key":period_key},
+            {"schedule_name":schedule_name, "period_key":period_key,
+             "task_type":task_type, "priority":priority},
         )
         return work_id
