@@ -12,6 +12,8 @@ database or contain customer, employee, financial, or other real IAC data.
 - Sean has separately approved its push and Railway deployment;
 - Railway reports that exact commit healthy, private, one replica, and attached to the
   original `/data` volume;
+- the package's candidate and deployed-baseline commits both equal that exact healthy
+  release; an older release must never be used against the newer database schema;
 - the Canada East bucket is still empty, private, SSE-B2 enabled, and protected by
   30-day compliance retention;
 - no application key or Railway managed value is created before its distinct approval.
@@ -35,7 +37,8 @@ The command creates a private synthetic SQLite source, mode-0600 manifest and ac
 package, a durable synthetic-only activation attestation, and a `PREFLIGHT_VALIDATED`
 transfer row. It prints only bounded hashes/status and performs no network request, key
 creation, secret placement, upload, restore, or approval. Existing files are never
-overwritten.
+overwritten. Recovery remains bound to the guarded pre-migration database backup; the
+package never treats older source code as a schema rollback target.
 
 Stop if the command reports any other data mode, transfer status, or external action.
 

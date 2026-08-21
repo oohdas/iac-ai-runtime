@@ -120,7 +120,10 @@ def build_supervised_backup_pilot_package(
         "owner_scope": "IAC",
         "data_mode": "SYNTHETIC_IAC_DATABASE_ONLY",
         "candidate_commit": candidate_commit,
-        "deployed_baseline_commit": "5eb51c2e650d8223b4b06ae90f0a5e90f0b72154",
+        # Staging is permitted only after this exact candidate is deployed and healthy.
+        # An older source release must never be presented as a rollback baseline for a
+        # newer schema; recovery uses the guarded pre-migration database backup instead.
+        "deployed_baseline_commit": candidate_commit,
         "bucket_name": BACKBLAZE_BUCKET,
         "provider_endpoint": BACKBLAZE_ENDPOINT,
         "object_ref": object_ref,

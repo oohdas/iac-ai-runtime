@@ -82,7 +82,10 @@ python3 scripts/prepare_supervised_backup_pilot.py FULL_CANDIDATE_COMMIT \
 
 This binds the actual Railway project/environment/service, named volume, exact Canada
 bucket and endpoint, object prefix, writer/key references, managed-variable names,
-candidate and baseline commits, cost, window, and nested drill/key packages. It permits
+candidate and deployed-baseline commits, cost, window, and nested drill/key packages. At
+staging time both commit fields must equal the exact release already proven healthy; an
+older schema-incompatible source release is never a rollback baseline. Recovery uses the
+guarded pre-migration database backup and recovery hold. The package permits
 synthetic IAC data only and explicitly leaves key creation, managed-value placement,
 push, deployment, upload, restore, network, and execution unauthorized. The example
 timestamp is illustrative; generate a fresh package for the approved window.

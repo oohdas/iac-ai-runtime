@@ -5,25 +5,23 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-21 05:33 EDT
-- Last continuous-goal checkpoint completed: 2026-08-21 05:36 EDT
-- Milestone selected: push and verify the exact approved schema-v18 continuous-runtime
-  candidate without enabling any backup, restore, secret, connector, or public exposure
-- Run state: Approved release deployed and verified healthy at schema v18
-- Last meaningful milestone: production now runs the bounded daily Chief of Staff portfolio
-  maintenance and complete operational-report path behind the existing safety boundaries
+- Last continuous-goal checkpoint started: 2026-08-21 05:37 EDT
+- Last continuous-goal checkpoint completed: 2026-08-21 05:40 EDT
+- Milestone selected: eliminate a stale schema-incompatible rollback baseline from the
+  next synthetic backup-staging package before any production staging is requested
+- Run state: Local rollback-binding follow-up complete and verified; deployed schema-v18
+  release remains healthy and unchanged
+- Last meaningful milestone: the pilot package now binds its deployed baseline to the exact
+  candidate already proven live and rejects any altered baseline
 - Deployed commit: `3a5ea9db5ee3574c64599d9171fb122bbcc861f8`
 - Runtime: Online on deployment `71463ab0-e310-4323-9982-15eb4aee0694`, private,
   one replica, original persistent `/data` volume attached
 - Remote main: `3a5ea9d`; Railway reports the exact commit as a successful deployment
-- Concrete changes: the Toronto-local scheduler now durably dispatches one priority-40
-  Chief of Staff maintenance task before priority-50 daily/weekly reports. Maintenance
-  reviews no more than 100 current IAC ACTIVE/INCUBATOR projects, ranks only complete
-  bounded metrics, and may pause only agent-owned low-fit or over-capacity work. Human-owned
-  or legacy projects with absent/invalid metrics remain unchanged and surface as attention.
-  Reports now distinguish active approvals from terminal outcomes and include completed
-  work, lifecycle changes, deadline risks, spend, and score-ranked priorities since the
-  prior report. Both paths are local-only, consume no approval, and cause no external effect.
+- Concrete changes: `deployed_baseline_commit` is now derived from the exact candidate
+  commit instead of a historical source release that must not open schema 18. Package
+  verification rejects baseline tampering; the canonical gate enforces the invariant; and
+  the drill plan/runbook state that database recovery uses the guarded pre-migration backup
+  and recovery hold, never schema-incompatible older source code.
 - Verification: canonical local release gate passes compilation, 253 automated tests,
   bridge/container/workflow safety, v17→v18 guarded migration, schema-v18 manifested
   recovery, all isolated backup/restore controls, continuous scheduling, missing-metric
@@ -35,12 +33,13 @@ Every automation run updates it, even when no notification is sent.
   the exact commit, SUCCESS/RUNNING, no domains, one replica, and the original ready volume.
 - Real data connected: No
 - Live integrations enabled: No
-- Current blocker: independent disaster recovery is still unproven. No synthetic activation,
-  transfer authorization, application key, managed value, upload, restore staging, restore
-  key, download, or isolated restore exists.
-- Next milestone: prepare the exact, separately gated production synthetic-staging package;
-  staging must precede any future writer-key or upload approval.
-- Sean action required: none for this completed release. Production staging, writer key,
+- Current blocker: the local rollback-binding follow-up is not pushed or deployed, so
+  production synthetic staging is prohibited. Independent disaster recovery remains
+  unproven; no activation, key, managed value, upload, download, or isolated restore exists.
+- Next milestone: preserve the verified follow-up locally and prepare its exact push/deploy
+  approval package. Only after that deployment is healthy can synthetic staging be approved.
+- Sean action required: none for the completed `3a5ea9d` release. A new exact commit approval
+  is required before the rollback-binding follow-up can deploy. Production staging, writer key,
   upload managed values, upload, restore staging, restore key, restore managed values,
   authorization, one-shot restore, billing change, real data, and deletion remain separate.
 
@@ -203,6 +202,13 @@ Every automation run updates it, even when no notification is sent.
     three succeeded scheduled tasks. Railway reports SUCCESS/RUNNING, private exposure,
     one replica, and the original ready volume. No key, secret, staging, upload, download,
     restore, connector, real data, or billing change was introduced.
+48. A post-release staging-package audit found a historical commit embedded as the deployed
+    rollback baseline even though that older source must never open schema 18. The local
+    follow-up now binds `deployed_baseline_commit` to the exact candidate already proven
+    healthy, rejects altered baseline evidence, and documents the guarded pre-migration
+    database backup/recovery hold as the only schema rollback boundary. All 253 tests and
+    the canonical release gate pass. Production remains healthy at `3a5ea9d`; no staging,
+    credential, variable, upload, download, or restore occurred.
 
 ## Update contract
 

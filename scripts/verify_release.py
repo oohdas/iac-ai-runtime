@@ -292,6 +292,7 @@ def main() -> int:
     required_backup_pilot_invariants = (
         "sean-os-supervised-synthetic-backup-pilot/v1",
         '"data_mode": "SYNTHETIC_IAC_DATABASE_ONLY"',
+        '"deployed_baseline_commit": candidate_commit',
         '"aa5875de-3c73-44df-a7d8-00b5911d64d2"',
         '"8bb602a7-8e67-4a34-8f57-def32780aeb9"',
         '"f836e6ff-56ba-4b69-8dab-6c2e91478853"',

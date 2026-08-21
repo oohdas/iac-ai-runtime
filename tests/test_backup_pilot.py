@@ -36,6 +36,7 @@ class BackupPilotTests(unittest.TestCase):
             package["provider_endpoint"], "s3.ca-east-006.backblazeb2.com"
         )
         self.assertIn(COMMIT[:12], package["object_ref"])
+        self.assertEqual(package["deployed_baseline_commit"], COMMIT)
         self.assertFalse(package["writer_key_approval_package"]["creation_authorized"])
         self.assertFalse(package["drill_approval_package"]["execution_authorized"])
         for field in (
@@ -63,6 +64,10 @@ class BackupPilotTests(unittest.TestCase):
     def test_tampering_wrong_commit_or_unbounded_window_fails_closed(self):
         modified = copy.deepcopy(self.package())
         modified["upload_authorized"] = True
+        with self.assertRaises(BackupPilotError):
+            verify_supervised_backup_pilot_package(modified)
+        modified = copy.deepcopy(self.package())
+        modified["deployed_baseline_commit"] = "9" * 40
         with self.assertRaises(BackupPilotError):
             verify_supervised_backup_pilot_package(modified)
         for commit, start, end in (
