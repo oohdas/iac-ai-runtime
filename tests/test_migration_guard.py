@@ -18,12 +18,13 @@ from sean_os.migration_guard import (
 from sean_os.store import Actor, SeanOSStore
 
 
-V8_TO_V12_TABLES = (
+V8_TO_V15_TABLES = (
     "coding_delivery_requests",
     "coding_deliveries",
     "alert_delivery_outbox",
     "alert_incidents",
     "alert_observations",
+    "backup_transfer_outbox",
 )
 
 
@@ -44,7 +45,7 @@ class MigrationGuardTests(unittest.TestCase):
         with sqlite3.connect(self.database) as connection:
             connection.execute("PRAGMA foreign_keys=OFF")
             connection.execute("DELETE FROM schema_migrations WHERE version >= 8")
-            for table in V8_TO_V12_TABLES:
+            for table in V8_TO_V15_TABLES:
                 connection.execute(f"DROP TABLE {table}")
             connection.commit()
         return record_id
@@ -64,7 +65,7 @@ class MigrationGuardTests(unittest.TestCase):
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         self.assertTrue(evidence["migration_required"])
         self.assertEqual(evidence["source_schema_version"], 7)
-        self.assertEqual(evidence["schema_version"], 12)
+        self.assertEqual(evidence["schema_version"], 15)
         self.assertEqual(manifest["storage_scope"], "SAME_RAILWAY_VOLUME")
         self.assertEqual(manifest["schema_version"], 7)
         self.assertEqual(stat.S_IMODE(backup.stat().st_mode), 0o600)
@@ -118,7 +119,7 @@ class MigrationGuardTests(unittest.TestCase):
     def test_explicit_restore_after_success_enters_recovery_state(self):
         self.make_deployed_v7_database()
         guarded_migrate(self.database, scope_profile="IAC")
-        self.assertEqual(self.schema_version(), 12)
+        self.assertEqual(self.schema_version(), 15)
 
         evidence = restore_pre_migration_backup(self.database, 7)
 

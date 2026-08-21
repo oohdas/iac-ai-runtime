@@ -17,6 +17,23 @@ SECRET_PATTERNS=(
 )
 
 
+def safe_persisted_text(
+    value: Any, *, fallback: str = "Sensitive detail redacted", max_length: int = 500,
+) -> str:
+    """Return bounded single-line text that is safe for durable operational evidence."""
+    text=" ".join(str(value).split()).strip()
+    if not text or secret_findings(text):
+        return fallback
+    return text[:max_length]
+
+
+def safe_exception_summary(error: BaseException, *, context: str) -> str:
+    """Describe an unexpected exception without persisting its potentially sensitive message."""
+    return safe_persisted_text(
+        f"{type(error).__name__}: {context}", fallback="Runtime operation failed"
+    )
+
+
 def secret_findings(value: Any, path: str = "$") -> list[dict[str, str]]:
     """Return secret classifications and paths, never secret values."""
     findings=[]

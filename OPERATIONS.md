@@ -83,17 +83,85 @@ customer action, or paid model service is connected.
 50. The direct container entrypoint bootstraps `/app` before application imports,
     and continuous verification must run the built image, observe migration-guard
     evidence, confirm it remains running, and reject every startup traceback.
+51. Durable work payloads and handler/completion results reject secret-like material.
+    Heartbeat, audit, policy-block, and failure evidence redact sensitive detail,
+    and unexpected worker exceptions persist only their class plus fixed context.
+    Interface validation never reflects secret-like input, and authentication audit
+    records only the URL path—not its potentially sensitive query string.
+52. Independent-backup production work starts from a deterministic, provider-neutral,
+    IAC-only approval package. The package requires encryption, retention lock,
+    restore isolation, bounded cost/window, Sean operation/rollback, no connectors,
+    and no real data while always remaining explicitly non-executing.
+53. A backup transfer plan re-verifies the SQLite file, SHA-256, byte count, schema,
+    integrity, foreign keys, and permanent IAC profile. It drops the source path,
+    contains no credentials, is hash-bound to the exact drill proposal, and leaves
+    encryption, network, upload, and execution false. Its only adapter is synthetic.
+54. Schema v15 durably stages that plan and its synthetic preflight receipt. The
+    approval request is bound to the plan, proposal, database hash, destination,
+    provider endpoint, writer/key references, object reference, retention mode,
+    retention period, execution window, and CAD ceiling. Only Sean can atomically
+    consume the exact single-use approval; authorization itself performs no upload.
+55. Authorized backup transfers use bounded durable leases. Expired leases are
+    recoverable, attempts stop at three by default, the kill switch prevents claims,
+    secret-like failure text is rejected, and exhausted work becomes `FAILED` and
+    raises a critical `BACKUP_TRANSFER_FAILED` health classification. No worker mode
+    or live adapter is enabled by this local contract.
+56. Completion accepts only a hash-valid production receipt matching the exact plan,
+    Backblaze provider, object, database hash/size, IAC authenticated encryption plus
+    provider AES-256, compliance lock, full approved retention period, upload time,
+    and non-overwrite flags. Preflight and provider receipts are retained separately;
+    credentials and source paths are prohibited. Receipt verification performs no call.
+57. The default-off execution boundary rejects partial configuration and raw secret
+    values. It requires an active exact-plan lease, approved time window, byte and CAD
+    ceilings, the exact Canada endpoint and non-secret writer/key references, and a
+    live store guard before encryption, before upload, and after upload. The boundary
+    contains no provider SDK, secret resolver, or network client. The separately
+    injected local AES-256-GCM port streams into a new mode-0600 artifact, binds the
+    exact plan as authenticated data, wipes mutable key buffers best-effort, and holds
+    restore output in quarantine until its tag and plaintext hash verify. No production
+    key resolver exists; all live ports remain separately reviewed and approval-gated.
+58. The first-drill Backblaze writer-key contract is non-creating, bucket-restricted,
+    prefix-restricted to `backups/`, expires within four hours, and permits only bucket
+    discovery, encryption/retention reads, upload, and file-retention reads. It excludes
+    downloads, deletes, key/bucket administration, retention/legal-hold writes, and
+    governance bypass. A distinct restore credential is required later.
+59. The disconnected Backblaze port accepts only an injected S3-compatible client. It
+    verifies default SSE-B2 and 30-day compliance retention, performs one conditional
+    `backups/` Put Object with explicit AES-256, and checks the returned version's exact
+    retention. Its reviewed client factory is bound to three fixed Railway managed
+    variable names, the exact HTTPS Canada endpoint, signed payloads, and one total SDK
+    attempt. It contains no file listing, download, deletion, retention write, or
+    automatic network retry. Any uncertain result after the write starts is a manual-
+    reconciliation condition. No managed values or live configuration are deployed.
 
 ## Local verification
 
 ```bash
 python3 -m unittest discover -s tests -v
 python3 scripts/status.py
-python3 scripts/healthcheck.py --database sean-os-local.db
+python3 scripts/healthcheck.py --database sean-os-local.db --scope-profile DEVELOPMENT
 python3 scripts/recovery_drill.py
 python3 scripts/kill_switch_drill.py
 python3 scripts/monitor_snapshot.py --database sean-os-local.db
 python3 scripts/verify_release.py
+python3 scripts/prepare_backup_approval.py backup-drill-proposal.example.json
+python3 scripts/prepare_backup_writer_key.py backup-writer-key-proposal.example.json
+python3 scripts/prepare_backup_transfer.py APPROVAL.json MANIFEST.json \
+  --object-ref backups/OPAQUE-ID.db.enc \
+  --provider-endpoint s3.ca-east-006.backblazeb2.com \
+  --writer-identity-ref iac-vault-writer:backup-only-v1 \
+  --client-encryption-key-ref iac-keyring:backup-key-v1
+```
+
+The transfer command requires an already verified local IAC backup manifest. It
+prints a path-free plan and synthetic receipt only. It cannot encrypt a file, read
+credentials, call a provider, upload data, or authorize execution.
+
+For the private IAC worker, the equivalent read-only health command must select the
+permanently bound production profile:
+
+```bash
+python3 scripts/healthcheck.py --database /data/iac-ai.db --scope-profile IAC
 ```
 
 To persist non-delivering IAC observations in an IAC-profile database, provide
@@ -137,7 +205,7 @@ Expected evidence:
 - identical alert plans receive deterministic IDs, repeats can be suppressed across
   runs, and acknowledgements produce hashed, timezone-aware local evidence while
   keeping `delivery_authorized=false`.
-- schema v12 durably stores PERSONAL or IAC alert observations, counts identical
+- schema v15 durably stores PERSONAL or IAC alert observations, counts identical
   occurrences, scope-filters reads, and permits one immutable Sean-only local
   acknowledgement; it also maintains resolvable/reopenable incidents without adding
   a delivery capability.
@@ -152,7 +220,7 @@ Expected evidence:
 - the in-memory HTTP contract test proves the ordinary interface credential receives
   `403` at the operator decision route, while the operator credential can decide and
   separately authorize the exact staged delivery; no socket or external service is used.
-- a schema-v10 fixture migrates through v12 without losing its staged delivery; the new
+- a schema-v10 fixture migrates through v15 without losing its staged delivery; the new
   lease, retry, and availability fields are initialized deterministically.
 - an isolated worker-process test consumes an exactly approved outbox item only when
   `--synthetic-delivery` is explicit and records a receipt proving both

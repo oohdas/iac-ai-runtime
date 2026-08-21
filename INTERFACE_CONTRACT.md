@@ -30,7 +30,8 @@ ChatGPT is the intended primary conversational interface, not a database adminis
 Arbitrary action names, extra fields, PERSONAL scope, unbounded approvals, credentials, external sends, deployments, financial transfers, and connector activation are not exposed.
 
 Scoped reads are available for individual records, filtered record lists, command
-status/results, the audit trace, active incidents, and delivery-outbox review.
+status/results, the audit trace, active incidents, delivery-outbox review, and
+backup-transfer review.
 PERSONAL records and audit events are not visible to the IAC interface principal.
 
 ## Incident and alert-delivery operations
@@ -52,6 +53,22 @@ be recovered after interruption without repeating Sean's decision. None of these
 routes invokes the synthetic adapter or a network delivery implementation.
 Reset is a recovery-state mutation only: it cannot claim, execute, authorize, or
 complete an outbox item.
+
+## Independent-backup operations
+
+| Method and path | Credential | Effect |
+|---|---|---|
+| `GET /v1/backup-transfers?status=PREFLIGHT_VALIDATED` | IAC interface | Reviews path-free IAC plans and no-network preflight evidence |
+| `GET /v1/backup-transfers/{plan_sha256}` | IAC interface | Reads one exact scoped transfer plan |
+| `POST /v1/backup-transfers/{plan_sha256}/request-approval` | IAC interface | Requests a bounded approval with exact plan/hash/endpoint/identity/key/window/cost/object/retention conditions |
+| `POST /v1/backup-transfers/{plan_sha256}/decision` | Sean operator | Approves or denies the exact request with a reason |
+| `POST /v1/backup-transfers/{plan_sha256}/authorize` | Sean operator | Atomically consumes the matching single-use approval and changes durable state only |
+
+The ordinary interface can review and request but cannot decide or authorize.
+Authorization does not expose a local path, read credentials, encrypt, upload, call
+a provider, or enable network execution. A default-off port boundary is tested, but
+the reviewed provider, client-encryption, and Railway managed-secret adapters remain
+undeployed, unconfigured, and default-off; authorization alone cannot activate them.
 
 ## Production prerequisites
 

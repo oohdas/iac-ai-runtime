@@ -10,9 +10,14 @@ from sean_os import SeanOSStore
 def main() -> int:
     parser=argparse.ArgumentParser()
     parser.add_argument("--database", default="sean-os-local.db")
+    parser.add_argument(
+        "--scope-profile",
+        choices=("DEVELOPMENT", "IAC", "PERSONAL"),
+        default="DEVELOPMENT",
+    )
     parser.add_argument("--stale-after-seconds", type=int, default=90)
     args=parser.parse_args()
-    store=SeanOSStore(args.database)
+    store=SeanOSStore(args.database, scope_profile=args.scope_profile)
     try:
         health=store.runtime_health(
             stale_after_seconds=args.stale_after_seconds, require_active_worker=True

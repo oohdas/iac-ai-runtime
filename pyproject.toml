@@ -7,7 +7,7 @@ name = "iac-ai-runtime"
 version = "0.1.0"
 description = "Policy-controlled IAC AI runtime for Sean OS v0.1"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["boto3==1.43.76", "cryptography==50.0.0"]
 
 [tool.setuptools]
 packages = ["sean_os"]

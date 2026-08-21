@@ -5,8 +5,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     SEAN_OS_DATABASE=/data/sean-os.db
 
 WORKDIR /app
+COPY pyproject.toml ./
 COPY sean_os ./sean_os
 COPY scripts ./scripts
+RUN python -m pip install --no-cache-dir .
 RUN useradd --system --uid 10001 sean-os && mkdir -p /data && chown sean-os:sean-os /data
 
 CMD ["python", "scripts/container_entrypoint.py"]

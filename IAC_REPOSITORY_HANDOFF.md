@@ -6,14 +6,16 @@
 - Visibility: private
 - Deployment branch: `main`
 - Railway behavior: existing automatic deployment on an approved `main` push
-- Deployed baseline: `1aa8762`
-- Local release candidate: clean local `main`; record `git rev-parse HEAD` at approval
+- Former rollback baseline: `1aa8762`
+- Deployed release: exact commit `139daf3`
+- Railway deployment: `5b6f3a83-404a-45e9-928a-2cf500d330d6`
 
 ## Release evidence
 
 - Canonical gate: `python3 scripts/verify_release.py`
-- Runtime tests: 126 passing in the canonical release gate
-- Schema: restart-safe additive migration from deployed v7 to release v12
+- Runtime tests: 159 passing in the canonical post-deployment local release gate
+- Schema: deployed production remains v12; the unpushed local follow-up adds a
+  restart-safe v15 backup-transfer outbox, lease, and receipt migration
 - Migration recovery: verified SHA-256 same-volume backup, automatic restore on
   migration failure, and explicit database-closed recovery hold
 - Recovery and kill-switch drills: included in the canonical gate
@@ -21,18 +23,22 @@
 - Container proof: the workflow now starts the built image, requires migration-guard
   evidence, requires the process to remain running, and rejects any traceback
 - Bridge contract: unchanged and verified by its committed schema hash
+- Durable secret boundary: queued inputs and worker outputs reject secret-like
+  material; operational/audit failures redact sensitive detail; raw exception
+  messages are not persisted; interface validation cannot reflect secret-like input
+  and unauthenticated query strings are excluded from audit evidence
+- Independent-backup drill gate: deterministic IAC-only proposal validation and an
+  exact hash-bound package that always requires approval and cannot execute
 
-## Controlled handoff sequence
+## Controlled handoff result
 
-1. Confirm the local tree is clean and record the exact head and commit list after
-   `1aa8762`.
-2. Obtain Sean's explicit approval for the revised guarded-deploy package.
-3. Push the reviewed local `main` to the existing IAC remote once.
-4. Confirm the entrypoint created and verified its v7 backup before migration.
-5. Observe Railway automatic deployment and run the checks in
-   `PRODUCTION_DECISION.md` without enabling any optional variable or connector.
-6. Preserve the deployment, backup, and verification evidence without record content
-   or secrets.
+1. The local release gate passed and Sean approved exact hotfix `139daf3`.
+2. The exact commit was pushed once to the existing IAC remote.
+3. GitHub run #8 passed, including the built-container runtime smoke test.
+4. Railway created and verified its v7 backup, migrated to v12, and started the worker.
+5. Live checks proved healthy IAC scope, integrity, one active worker, uid/gid 10001,
+   zero effective capabilities, one replica, no public domain, and the original volume.
+6. Deployment and backup evidence was preserved without record content or secrets.
 
 If recovery is required, follow the exact automatic or approval-gated recovery path
 in `PRODUCTION_DECISION.md`, then use Railway's selected baseline-deployment rollback

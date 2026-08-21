@@ -302,3 +302,60 @@ class CommandGateway:
         return self.store.reset_failed_alert_delivery(
             self.actor, delivery_id, reason=reason
         )
+
+    def backup_transfers(
+        self, *, status: str | None = None, scope: str = "IAC"
+    ) -> list[dict[str, Any]]:
+        if scope != "IAC":
+            raise AuthorizationError("v0.1 backup interface is isolated to IAC scope")
+        return self.store.list_backup_transfers(self.actor, status=status)
+
+    def backup_transfer(
+        self, plan_sha256: str, *, scope: str = "IAC"
+    ) -> dict[str, Any]:
+        if scope != "IAC":
+            raise AuthorizationError("v0.1 backup interface is isolated to IAC scope")
+        transfer=self.store.get_backup_transfer(self.actor, plan_sha256)
+        if transfer["owner_scope"] != scope:
+            raise AuthorizationError("Backup transfer is outside the interface scope")
+        return transfer
+
+    def request_backup_approval(
+        self, plan_sha256: str, *, max_impact: str, expires_at: str,
+        scope: str = "IAC",
+    ) -> str:
+        self.backup_transfer(plan_sha256, scope=scope)
+        return self.store.request_backup_transfer_approval(
+            self.actor, plan_sha256, max_impact=max_impact, expires_at=expires_at
+        )
+
+    def decide_backup_approval(
+        self, plan_sha256: str, *, approval_id: str, approve: bool, reason: str,
+        scope: str = "IAC",
+    ) -> str:
+        if not self.actor.is_sean:
+            raise AuthorizationError("Only Sean's authenticated interface may decide approvals")
+        transfer=self.backup_transfer(plan_sha256, scope=scope)
+        approval=self.store.connection.execute(
+            "SELECT action_type, target, scope FROM approvals WHERE record_id=?",
+            (approval_id,),
+        ).fetchone()
+        if approval is None:
+            raise ValidationError("Approval not found")
+        if (approval["scope"] != scope or
+                approval["action_type"] != "RUN_INDEPENDENT_BACKUP_RESTORE_DRILL" or
+                approval["target"] != transfer["approval_target"]):
+            raise AuthorizationError("Approval does not match the exact IAC backup transfer")
+        return self.store.decide_approval(
+            self.actor, approval_id, approve=approve, reason=reason
+        )
+
+    def authorize_backup(
+        self, plan_sha256: str, *, approval_id: str, scope: str = "IAC"
+    ) -> dict[str, Any]:
+        if not self.actor.is_sean:
+            raise AuthorizationError("Only Sean's authenticated interface may authorize backup")
+        self.backup_transfer(plan_sha256, scope=scope)
+        return self.store.authorize_backup_transfer(
+            self.actor, plan_sha256, approval_id=approval_id
+        )

@@ -21,9 +21,9 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
 - Persistent volume `iac-ai-runtime-volume` is attached at `/data` and the
   service variable is `SEAN_OS_DATABASE=/data/iac-ai.db`.
 - No public domain is configured; Railway reports the service as unexposed.
-- Deployment baseline `1aa8762` is the current tracked `origin/main` and was
-  recorded Online. The worker successfully opened the volume-backed database
-  after its entrypoint prepared `/data` and dropped to uid/gid 10001.
+- Deployment baseline `1aa8762` was the pre-release rollback point. The worker
+  successfully opened the volume-backed database after its entrypoint prepared
+  `/data` and dropped to uid/gid 10001.
 - A controlled restart on 2026-08-20 returned the same deployment Online and
   Railway remounted the same persistent volume before container startup.
 - The Railway GitHub App is restricted to `oohdas/iac-ai-runtime`; production
@@ -42,11 +42,18 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
 - The local container entrypoint now has a default-off, all-or-none environment
   contract for integrated non-delivering monitoring. No monitoring route variable
   has been added to Railway, and no alert destination or delivery is authorized.
-- The reviewed local hotfix now has a same-volume, verified pre-migration backup,
-  automatic restore, and recovery-hold guard. This protects the v7→v12 release but
-  does not satisfy independent disaster recovery. It also bootstraps direct-script
-  imports and makes CI run the built container entrypoint. No hotfix commit is
-  authorized for push until the retry package is approved.
+- Sean approved exact hotfix `139daf3`; GitHub verification run #8 passed and
+  Railway deployed it as `5b6f3a83-404a-45e9-928a-2cf500d330d6`.
+- The production guard created a mode-0600 same-volume backup and manifest,
+  verified SHA-256 `6dc6a8acfe2a036b87eab9ca73387cb07ba21116a15dcc2ec87898fe1da9102c`,
+  migrated schema v7→v12, and reported integrity OK before worker startup.
+- A live scope-correct check reported healthy database and foreign keys, one active
+  non-stale IAC worker, kill switch off, and no attention items. PID 1 runs as
+  uid/gid 10001 with zero effective capabilities.
+- A delayed status/log recheck showed the same running instance, no restart or
+  traceback, one replica, no domain, and the original ready `/data` volume.
+- This same-volume guard protects this release but does not satisfy independent
+  disaster recovery.
 
 ## Required pre-deployment controls
 
@@ -57,8 +64,9 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
 5. [x] Set `SEAN_OS_DATABASE=/data/iac-ai.db`.
 6. [x] Keep the worker unexposed with no public domain.
 7. [x] Verify successful startup against the volume-backed IAC database.
-8. [ ] Verify runtime uid, production kill switch, independent production backup, isolated
-   restore, and alert delivery before broader production approval. Restart and
+8. [ ] Verify production kill switch, independent production backup, isolated
+   restore, and alert delivery before broader production approval. Runtime uid/gid
+   10001 with zero effective capabilities, restart, and
    volume-remount persistence have been verified. Deterministic local alert
    classification now covers stale workers, blocked work, dead letters, budget
    stops, integrity failures, kill-switch activation, and backup failure;

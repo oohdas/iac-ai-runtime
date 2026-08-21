@@ -143,6 +143,17 @@ class SeanOSCoreTests(unittest.TestCase):
         for event in self.store.audit_events():
             self.assertTrue(required.issubset(event["details"]))
 
+    def test_audit_boundary_redacts_secret_reason_and_details(self):
+        synthetic_secret="sk-" + "a" * 24
+        self.store._audit(
+            self.iac_agent, "SYNTHETIC_FAILURE", "FAILED", synthetic_secret,
+            details={"diagnostic":synthetic_secret},
+        )
+        event=self.store.audit_events()[-1]
+        self.assertEqual(event["policy_reason"], "Sensitive audit detail redacted")
+        self.assertTrue(event["details"]["sensitive_detail_redacted"])
+        self.assertNotIn(synthetic_secret, json.dumps(event, sort_keys=True))
+
     def test_direct_personal_iac_relationship_is_prohibited(self):
         personal = self.store.create_record(self.sean, "GOAL", "PERSONAL", {"name": "Freedom"})
         company = self.store.create_record(self.sean, "PROJECT", "IAC", {"name": "Exit readiness"})
@@ -241,7 +252,7 @@ class SeanOSCoreTests(unittest.TestCase):
         backup=Path(self.temp.name) / "verified-backup.db"
         manifest=self.store.backup_manifest(self.sean, backup)
         self.assertTrue(manifest["integrity_ok"])
-        self.assertEqual(manifest["schema_version"], 12)
+        self.assertEqual(manifest["schema_version"], 15)
         restored_path=Path(self.temp.name) / "restored.db"
         self.store.restore_backup(self.sean, backup, restored_path)
         restored=SeanOSStore(restored_path)
@@ -286,7 +297,7 @@ class SeanOSCoreTests(unittest.TestCase):
         connection.commit(); connection.close()
         migrated=SeanOSStore(legacy_path)
         try:
-            self.assertEqual(migrated.schema_version, 12)
+            self.assertEqual(migrated.schema_version, 15)
             self.assertEqual(
                 migrated.connection.execute("SELECT status FROM work_queue WHERE id=?", (work_id,)).fetchone()[0],
                 "QUEUED",
@@ -313,7 +324,7 @@ class SeanOSCoreTests(unittest.TestCase):
         finally:
             migrated.close()
 
-    def test_deployed_schema_v7_migrates_to_v12_without_losing_state(self):
+    def test_deployed_schema_v7_migrates_to_v15_without_losing_state(self):
         deployed_path=Path(self.temp.name) / "deployed-v7.db"
         deployed=SeanOSStore(deployed_path)
         record_id=deployed.create_record(
@@ -326,14 +337,14 @@ class SeanOSCoreTests(unittest.TestCase):
         connection.execute("DELETE FROM schema_migrations WHERE version >= 8")
         for table in (
             "coding_delivery_requests", "coding_deliveries", "alert_delivery_outbox",
-            "alert_incidents", "alert_observations",
+            "alert_incidents", "alert_observations", "backup_transfer_outbox",
         ):
             connection.execute(f"DROP TABLE {table}")
         connection.commit(); connection.close()
 
         migrated=SeanOSStore(deployed_path)
         try:
-            self.assertEqual(migrated.schema_version, 12)
+            self.assertEqual(migrated.schema_version, 15)
             self.assertEqual(
                 migrated.get_record(self.sean, record_id)["payload"]["name"],
                 "Deployed migration sentinel",
@@ -345,7 +356,8 @@ class SeanOSCoreTests(unittest.TestCase):
                 "QUEUED",
             )
             expected={"alert_observations", "alert_incidents", "alert_delivery_outbox",
-                      "coding_deliveries", "coding_delivery_requests"}
+                      "coding_deliveries", "coding_delivery_requests",
+                      "backup_transfer_outbox"}
             actual={row[0] for row in migrated.connection.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )}
@@ -450,11 +462,83 @@ class SeanOSCoreTests(unittest.TestCase):
         self.assertTrue(health["healthy"])
         self.assertEqual(health["active_worker_count"], 1)
 
+    def test_heartbeat_redacts_secret_like_operational_details(self):
+        synthetic_secret="sk-" + "x" * 24
+        self.store.heartbeat(
+            "worker-1", "IAC", "ERROR", details={"error":synthetic_secret}
+        )
+        health=self.store.runtime_health()
+        details=health["workers"][0]["details"]
+        self.assertTrue(details["sensitive_detail_redacted"])
+        self.assertEqual(details["finding_types"], ["openai_style_key"])
+        self.assertNotIn(synthetic_secret, json.dumps(health, sort_keys=True))
+
     def test_worker_cannot_claim_outside_its_scope(self):
         work_id=self.store.enqueue_work(self.sean, "NOOP", "PERSONAL", {})
         self.assertIsNone(self.store.claim_work(self.iac_agent, "worker-1"))
         status=self.store.connection.execute("SELECT status FROM work_queue WHERE id=?", (work_id,)).fetchone()[0]
         self.assertEqual(status, "QUEUED")
+
+    def test_durable_queue_rejects_secret_like_payload_without_persisting_value(self):
+        synthetic_secret="sk-" + "q" * 24
+        with self.assertRaisesRegex(ValidationError, "durable work payloads"):
+            self.store.enqueue_work(
+                self.sean, "NOOP", "IAC", {"context":synthetic_secret}
+            )
+        self.assertEqual(
+            self.store.connection.execute("SELECT COUNT(*) FROM work_queue").fetchone()[0], 0
+        )
+        audit=json.dumps(self.store.audit_events(), sort_keys=True)
+        self.assertNotIn(synthetic_secret, audit)
+        self.assertIn("Secret-like material is prohibited", audit)
+
+    def test_handler_result_and_failure_text_cannot_persist_secrets(self):
+        synthetic_secret="sk-" + "r" * 24
+        registry=ActionRegistry()
+        registry.register(
+            ActionPolicy(
+                "SYNTHETIC_RESULT", frozenset({"IAC"}), False, True, False, False,
+            ),
+            lambda _payload: {"result":synthetic_secret},
+        )
+        work_id=self.store.enqueue_work(self.sean, "SYNTHETIC_RESULT", "IAC", {})
+        work=self.store.claim_work(self.iac_agent, "worker-1")
+        with self.assertRaisesRegex(ValidationError, "durable action results"):
+            registry.execute(self.store, self.iac_agent, work)
+        self.assertIsNone(
+            self.store.connection.execute(
+                "SELECT result FROM action_executions WHERE work_id=?", (work_id,)
+            ).fetchone()
+        )
+        self.store.fail_work(self.iac_agent, work_id, "worker-1", synthetic_secret)
+        last_error=self.store.connection.execute(
+            "SELECT last_error FROM work_queue WHERE id=?", (work_id,)
+        ).fetchone()[0]
+        self.assertEqual(last_error, "Sensitive detail redacted")
+        durable=json.dumps(
+            {
+                "work":dict(self.store.connection.execute(
+                    "SELECT * FROM work_queue WHERE id=?", (work_id,)
+                ).fetchone()),
+                "audit":self.store.audit_events(),
+            },
+            sort_keys=True,
+        )
+        self.assertNotIn(synthetic_secret, durable)
+
+    def test_complete_work_rejects_secret_like_result_even_without_registry(self):
+        synthetic_secret="sk-" + "s" * 24
+        work_id=self.store.enqueue_work(self.sean, "NOOP", "IAC", {})
+        self.store.claim_work(self.iac_agent, "worker-1")
+        with self.assertRaisesRegex(ValidationError, "completed work"):
+            self.store.complete_work(
+                self.iac_agent, work_id, "worker-1", {"value":synthetic_secret}
+            )
+        row=self.store.connection.execute(
+            "SELECT status, payload FROM work_queue WHERE id=?", (work_id,)
+        ).fetchone()
+        self.assertEqual(row["status"], "RUNNING")
+        self.assertNotIn(synthetic_secret, row["payload"])
 
     def test_unknown_action_is_policy_blocked(self):
         work_id=self.store.enqueue_work(self.sean, "UNREGISTERED", "IAC", {})

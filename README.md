@@ -2,7 +2,10 @@
 
 IAC-owned company automation runtime implementing the IAC side of Sean OS v0.1.
 
-This build intentionally uses Python's standard library and SQLite so it can be tested without accounts, paid services, production credentials, or real PERSONAL/IAC data.
+This build uses Python and SQLite and can be tested without accounts, paid services,
+production credentials, or real PERSONAL/IAC data. The optional backup path pins PyCA
+cryptography and Boto3 for authenticated encryption and the S3-compatible provider port;
+both remain default-off and injectable in tests.
 
 ## Included
 
@@ -33,6 +36,28 @@ This build intentionally uses Python's standard library and SQLite so it can be 
 - Fail-closed production migration guard with verified same-volume pre-migration
   backup, automatic rollback, and a database-closed operator recovery hold
 - SHA-256 manifested backups and verified, non-overwriting restores
+- Fail-closed secret scanning for durable queue inputs and worker results, plus
+  redacted operational/audit error evidence
+- Deterministic, hash-bound, non-executing approval packages for a future independent
+  encrypted backup/isolated-restore drill
+- A path-free, provider-neutral backup transfer plan that re-verifies the local IAC
+  snapshot and produces only a deterministic no-network synthetic adapter receipt
+- Schema-v15 durable backup-transfer outbox with no-network preflight evidence and
+  atomic, exact-condition, single-use Sean authorization before any future adapter
+- Default-off backup-transfer leases with crash recovery, three-attempt exhaustion,
+  kill-switch enforcement, secret-safe failures, and critical health escalation
+- Exact production receipt verification for Backblaze identity, authenticated IAC
+  encryption, provider AES-256, compliance retention, timestamps, and no overwrite;
+  no provider client is present or enabled
+- A default-off, port-injected backup execution boundary that binds the exact Canada
+  endpoint, writer/key references, window, byte and CAD ceilings, active lease, and
+  live kill-switch checks before encryption, before upload, and after upload
+- A deterministic non-creating first-drill key contract restricted to one bucket,
+  the `backups/` prefix, six read/verify/upload capabilities, and four hours; it
+  explicitly excludes downloads, deletes, key/bucket administration, retention writes,
+  legal holds, and governance bypass
+- Primary-interface backup review/request routes with decision and authorization
+  restricted to the separate Sean operator identity
 - Automated recovery drill with integrity and sentinel-record verification
 - Explicit production gate checklist for ownership, security, monitoring, storage, and approvals
 - Synthetic-only Revenue Agent qualification with bounded scoring and value limits
@@ -83,9 +108,17 @@ python3 -m unittest discover -s tests -v
 python3 scripts/demo.py
 python3 scripts/status.py
 python3 scripts/worker.py --once
-python3 scripts/healthcheck.py --database sean-os-local.db
+python3 scripts/healthcheck.py --database sean-os-local.db --scope-profile DEVELOPMENT
 python3 scripts/recovery_drill.py
 python3 scripts/verify_release.py
+python3 scripts/prepare_backup_transfer.py APPROVAL.json MANIFEST.json \
+  --object-ref backups/OPAQUE-ID.db.enc \
+  --provider-endpoint s3.ca-east-006.backblazeb2.com \
+  --writer-identity-ref iac-vault-writer:backup-only-v1 \
+  --client-encryption-key-ref iac-keyring:backup-key-v1
+python3 scripts/prepare_backup_writer_key.py backup-writer-key-proposal.example.json
+python3 scripts/prepare_supervised_backup_pilot.py FULL_CANDIDATE_COMMIT \
+  2026-08-21T09:00:00-04:00 --duration-minutes 120
 SEAN_OS_INTERFACE_TOKEN='<32+ random characters>' \
 SEAN_OS_OPERATOR_TOKEN='<different 32+ random characters>' python3 scripts/interface.py
 ```
@@ -97,6 +130,8 @@ secret access, live connector, or external-action step.
 
 See [OPERATIONS.md](OPERATIONS.md) for health, shutdown, recovery, and production-readiness procedures.
 See [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) for the explicit production gate.
+See [BACKUP_PROVIDER_DECISION.md](BACKUP_PROVIDER_DECISION.md) for the reviewed,
+non-executing independent-backup recommendation and exact approval boundary.
 See [INTEGRATION_ROADMAP.md](INTEGRATION_ROADMAP.md) for connector ordering and activation boundaries.
 See [INTERFACE_CONTRACT.md](INTERFACE_CONTRACT.md) for the ChatGPT authority boundary.
 
@@ -108,4 +143,6 @@ and every new deployment remain approval-gated. The outbox adapter only produces
 synthetic receipts and has no network implementation. The Revenue Agent handles
 synthetic inputs only and has no outreach, CRM, pricing, quoting, or spending
 authority. Unknown actions never execute; approval-blocked work waits for an
-explicit, exact authorization rather than retrying.
+explicit, exact authorization rather than retrying. A reviewed Backblaze network port
+now exists locally, but it remains unconfigured and default-off; its supervised package
+authorizes no push, deployment, managed value, upload, restore, network, or execution.

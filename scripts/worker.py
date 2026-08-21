@@ -12,6 +12,7 @@ from sean_os import (
     Actor, EscalationRoute, LocalScheduler, PolicyDenied, RuntimeMonitor,
     SeanOSStore, chief_of_staff_registry, synthetic_delivery_receipt,
 )
+from sean_os.security import safe_exception_summary
 
 
 STOP = False
@@ -98,8 +99,12 @@ def main():
                     approval_required=exc.approval_required,
                 )
             except Exception as exc:
-                store.heartbeat(args.worker_id, "IAC", "ERROR", current_work_id=work["id"], details={"error": str(exc)})
-                store.fail_work(actor, work["id"], args.worker_id, str(exc))
+                safe_error=safe_exception_summary(exc, context="worker handler failed")
+                store.heartbeat(
+                    args.worker_id, "IAC", "ERROR", current_work_id=work["id"],
+                    details={"error":safe_error},
+                )
+                store.fail_work(actor, work["id"], args.worker_id, safe_error)
             if args.once: break
     finally:
         store.heartbeat(args.worker_id, "IAC", "STOPPED")

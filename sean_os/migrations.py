@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 
-LATEST_SCHEMA_VERSION = 12
+LATEST_SCHEMA_VERSION = 15
 
 
 def _stamp() -> str:
@@ -140,6 +140,39 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
     if 12 not in versions:
         # v12 synthetic coding-delivery ledger is additive and created by schema.sql.
         _record(connection, 12)
+    if 13 not in versions:
+        # v13 approval-gated independent-backup transfer outbox is additive.
+        _record(connection, 13)
+    if 14 not in versions:
+        _add_column_if_missing(connection, "backup_transfer_outbox", "attempt_count",
+                               "INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0)")
+        _add_column_if_missing(connection, "backup_transfer_outbox", "max_attempts",
+                               "INTEGER NOT NULL DEFAULT 3 CHECK (max_attempts BETWEEN 1 AND 10)")
+        _add_column_if_missing(connection, "backup_transfer_outbox", "available_at", "TEXT")
+        _add_column_if_missing(connection, "backup_transfer_outbox", "lease_owner", "TEXT")
+        _add_column_if_missing(connection, "backup_transfer_outbox", "lease_expires_at", "TEXT")
+        _add_column_if_missing(connection, "backup_transfer_outbox", "last_error", "TEXT")
+        connection.execute(
+            "UPDATE backup_transfer_outbox SET available_at=created_at WHERE available_at IS NULL"
+        )
+        connection.execute(
+            """CREATE INDEX IF NOT EXISTS idx_backup_transfer_outbox_claim
+               ON backup_transfer_outbox(status, available_at, lease_expires_at, created_at)"""
+        )
+        connection.commit()
+        _record(connection, 14)
+    if 15 not in versions:
+        _add_column_if_missing(
+            connection, "backup_transfer_outbox", "preflight_receipt_payload", "TEXT"
+        )
+        connection.execute(
+            """UPDATE backup_transfer_outbox
+               SET preflight_receipt_payload=receipt_payload, receipt_payload=NULL
+               WHERE preflight_receipt_payload IS NULL AND receipt_payload IS NOT NULL
+               AND status IN ('STAGED','PREFLIGHT_VALIDATED','AUTHORIZED','FAILED')"""
+        )
+        connection.commit()
+        _record(connection, 15)
     version=connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
     if version != LATEST_SCHEMA_VERSION:
         raise sqlite3.DatabaseError(

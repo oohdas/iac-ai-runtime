@@ -1,31 +1,39 @@
-# Sean OS v0.1 — Production Retry Decision
+# Sean OS v0.1 — Production Retry Record
 
 ## Current status
 
-- The private IAC Railway pilot is back on healthy baseline `1aa8762`, rollback
-  deployment `416bd9e9-7220-42a5-95b6-bca5c44a249f`, with one replica and `/data` attached.
+- Sean approved the exact guarded retry for hotfix `139daf3` on 2026-08-20.
+- GitHub verification run #8 passed, including the built-container startup smoke check.
+- Railway deployment `5b6f3a83-404a-45e9-928a-2cf500d330d6` is Online on exact
+  commit `139daf3`, with one replica and the original `/data` volume attached.
 - The approved native-backup release was stopped before any push after Railway's
   Backups page showed that backups/PITR require Pro. No backup, plan upgrade,
   variable change, or new-source deployment occurred.
 - Exact commit `710b197` passed GitHub verification but its Railway container failed
   before database open because direct script execution could not resolve `sean_os`.
   Schema v7 was untouched and the approved rollback completed.
-- The local hotfix bootstraps the application root before import and adds both an
-  exact direct-script regression and a post-build container runtime smoke test.
-  It is not yet pushed.
+- The hotfix bootstraps the application root before import and adds both an exact
+  direct-script regression and a post-build container runtime smoke test.
+- The production guard created a mode-0600 v7 backup and manifest, verified SHA-256
+  `6dc6a8acfe2a036b87eab9ca73387cb07ba21116a15dcc2ec87898fe1da9102c`,
+  migrated to schema v12, and reported integrity OK.
+- A scope-correct live health query reported healthy, one active non-stale IAC
+  worker, no kill switch, no attention items, and database/foreign-key integrity OK.
+- PID 1 is Python under uid/gid 10001 with no effective Linux capabilities. The
+  service remains unexposed and its single instance stayed running on delayed recheck.
 
-## Revised decision required
+## Approved package executed
 
-Approve one controlled no-upgrade retry package:
+The approved no-upgrade retry package was executed as follows:
 
-1. push the clean, release-gated hotfix on top of `710b197` to
+1. pushed the clean, release-gated hotfix on top of `710b197` to
    `oohdas/iac-ai-runtime/main`, allowing the existing automatic deployment;
-2. before schema migration, let the entrypoint create a verified SHA-256 backup
-   and manifest beside the database on the attached `/data` volume;
-3. automatically restore schema v7 and deny worker startup if migration fails;
-4. leave every optional monitoring, delivery, interface, operator, and connector
+2. before schema migration, the entrypoint created a verified SHA-256 backup and
+   manifest beside the database on the attached `/data` volume;
+3. retained automatic schema-v7 restore and denied worker startup on migration failure;
+4. left every optional monitoring, delivery, interface, operator, and connector
    variable unchanged and disabled;
-5. verify one replica, private exposure, `/data`, schema v12, IAC scope profile,
+5. verified one replica, private exposure, `/data`, schema v12, IAC scope profile,
    integrity, uid/gid 10001, backup evidence, and healthy startup;
 6. if import or migration fails, select Railway's known-good baseline deployment and roll
    back only after confirming the automatic restore returned the database to v7;
@@ -34,7 +42,7 @@ Approve one controlled no-upgrade retry package:
    recovery-hold evidence, then roll back to the baseline deployment, which also
    restores the baseline variables and removes the recovery flag.
 
-This package does not authorize a Pro upgrade, higher spend, a public endpoint,
+This completed package does not authorize a Pro upgrade, higher spend, a public endpoint,
 new services or replicas, live Claude/model use, real data, external messages, or
 any connector.
 
@@ -44,6 +52,12 @@ The same-volume file protects this specific schema migration; it is not an
 independent disaster-recovery backup. A separate encrypted off-volume backup and
 isolated restore drill remain mandatory before broader production or real data.
 Native Railway backups are unavailable on the current Hobby plan.
+
+The reviewed follow-up recommendation is an IAC-owned Backblaze B2 private bucket
+with 30-day compliance-mode Object Lock, default provider encryption, and IAC-owned
+client-side encryption. `BACKUP_PROVIDER_DECISION.md` records the non-executing
+decision and its approval boundary. No provider account, bucket, credential,
+Railway variable, deployment, upload, or restore has been authorized by that record.
 
 Railway documents that rollback/redeploy of a selected prior deployment uses that
 deployment's source, image, and variables. The v7 database must never be opened by

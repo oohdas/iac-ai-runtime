@@ -10,7 +10,12 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .migrations import LATEST_SCHEMA_VERSION, apply_migrations
-from .security import secret_findings
+from .security import safe_persisted_text, secret_findings
+from .backup_adapter import (
+    verify_backup_upload_receipt,
+    verify_backup_transfer_plan,
+    verify_synthetic_backup_adapter_receipt,
+)
 
 SCOPES = {"PERSONAL", "IAC", "SHARED"}
 ENTITY_TYPES = {"GOAL", "IDEA", "PROJECT", "TASK", "DECISION", "KNOWLEDGE", "AGENT", "APPROVAL"}
@@ -87,6 +92,16 @@ class SeanOSStore:
         envelope={"evidence":[], "model":None, "tool":None, "cost_units":0,
                   "outcome":result, "rollback_status":"NOT_APPLICABLE"}
         envelope.update(details or {})
+        findings=secret_findings({"reason":reason, "details":envelope})
+        if findings:
+            reason="Sensitive audit detail redacted"
+            envelope={
+                "evidence":[], "model":None, "tool":None, "cost_units":0,
+                "outcome":result, "rollback_status":"NOT_APPLICABLE",
+                "sensitive_detail_redacted":True,
+                "finding_count":len(findings),
+                "finding_types":sorted({item["type"] for item in findings}),
+            }
         self.connection.execute(
             """INSERT INTO audit_log
                (event_id, occurred_at, actor_id, action, result, policy_reason,
@@ -378,8 +393,11 @@ class SeanOSStore:
 
     def consume_approval(
         self, actor: Actor, approval_id: str, *, action_type: str, target: str,
-        at: str | None = None, scope: str | None = None, commit: bool = True,
+        at: str | None = None, scope: str | None = None,
+        conditions: dict[str, Any] | None = None, commit: bool = True,
     ) -> None:
+        if conditions is not None and secret_findings(conditions):
+            raise ValidationError("Secret-like material is prohibited in approval conditions")
         row = self.connection.execute("SELECT * FROM approvals WHERE record_id=?", (approval_id,)).fetchone()
         timestamp = at or now()
         reason = None
@@ -393,6 +411,8 @@ class SeanOSStore:
             reason = f"Approval status is {row['status']}"
         elif row["action_type"] != action_type or row["target"] != target:
             reason = "Approval does not match exact action and target"
+        elif conditions is not None and json.loads(row["conditions"]) != conditions:
+            reason = "Approval conditions do not match the exact action plan"
         elif timestamp >= row["expires_at"]:
             reason = "Approval expired"
         if reason:
@@ -403,6 +423,399 @@ class SeanOSStore:
             self.connection.execute("UPDATE approvals SET status='CONSUMED' WHERE record_id=?", (approval_id,))
         self._audit(actor, "CONSUME_APPROVAL", "ALLOWED", "Exact active approval matched", approval_id,
                     {"action_type": action_type, "target": target}, commit=commit)
+
+    def stage_backup_transfer(
+        self, actor: Actor, plan: dict[str, Any], approval_package: dict[str, Any]
+    ) -> dict[str, Any]:
+        if self.scope_profile != "IAC":
+            raise AuthorizationError("Backup transfer outbox requires an IAC database profile")
+        self._authorize(actor, "IAC", (), "write")
+        verified=verify_backup_transfer_plan(plan, approval_package)
+        payload=json.dumps(verified, sort_keys=True, separators=(",", ":"))
+        existing=self.connection.execute(
+            "SELECT plan_payload FROM backup_transfer_outbox WHERE plan_sha256=?",
+            (verified["plan_sha256"],),
+        ).fetchone()
+        if existing is not None:
+            if existing["plan_payload"] != payload:
+                raise ValidationError("Backup transfer plan hash is already bound to different evidence")
+            return self.get_backup_transfer(actor, verified["plan_sha256"])
+        stamp=now()
+        self.connection.execute(
+            """INSERT INTO backup_transfer_outbox
+               (plan_sha256, owner_scope, approval_target, proposal_sha256,
+                plan_payload, status, available_at, created_at, updated_at)
+               VALUES (?, 'IAC', ?, ?, ?, 'STAGED', ?, ?, ?)""",
+            (verified["plan_sha256"], verified["approval_target"],
+             verified["proposal_sha256"], payload, stamp, stamp, stamp),
+        )
+        self.connection.commit()
+        self._audit(
+            actor, "STAGE_BACKUP_TRANSFER", "ALLOWED",
+            "Path-free no-network backup transfer plan staged",
+            details={"scope":"IAC", "plan_sha256":verified["plan_sha256"],
+                     "network_enabled":False, "execution_authorized":False},
+        )
+        return self.get_backup_transfer(actor, verified["plan_sha256"])
+
+    def get_backup_transfer(self, actor: Actor, plan_sha256: str) -> dict[str, Any]:
+        row=self.connection.execute(
+            "SELECT * FROM backup_transfer_outbox WHERE plan_sha256=?", (plan_sha256,)
+        ).fetchone()
+        if row is None:
+            raise ValidationError("Backup transfer plan not found")
+        self._authorize(actor, row["owner_scope"], (), "read")
+        result=dict(row)
+        result["plan_payload"]=json.loads(result["plan_payload"])
+        result["preflight_receipt_payload"]=(
+            json.loads(result["preflight_receipt_payload"])
+            if result["preflight_receipt_payload"] else None
+        )
+        result["receipt_payload"]=(
+            json.loads(result["receipt_payload"]) if result["receipt_payload"] else None
+        )
+        return result
+
+    def list_backup_transfers(
+        self, actor: Actor, *, status: str | None = None
+    ) -> list[dict[str, Any]]:
+        self._authorize(actor, "IAC", (), "read")
+        allowed={"STAGED", "PREFLIGHT_VALIDATED", "AUTHORIZED", "COMPLETED", "FAILED"}
+        if status is not None and status not in allowed:
+            raise ValidationError("Unknown backup transfer status")
+        if status is None:
+            rows=self.connection.execute(
+                "SELECT plan_sha256 FROM backup_transfer_outbox ORDER BY created_at, plan_sha256"
+            ).fetchall()
+        else:
+            rows=self.connection.execute(
+                """SELECT plan_sha256 FROM backup_transfer_outbox
+                   WHERE status=? ORDER BY created_at, plan_sha256""",
+                (status,),
+            ).fetchall()
+        result=[self.get_backup_transfer(actor, row["plan_sha256"]) for row in rows]
+        self._audit(
+            actor, "LIST_BACKUP_TRANSFERS", "ALLOWED",
+            "Scope-safe backup transfer review returned",
+            details={"scope":"IAC", "status":status, "result_count":len(result)},
+        )
+        return result
+
+    def record_backup_transfer_preflight(
+        self, actor: Actor, plan_sha256: str, receipt: dict[str, Any]
+    ) -> dict[str, Any]:
+        verified=verify_synthetic_backup_adapter_receipt(receipt)
+        if verified["plan_sha256"] != plan_sha256:
+            raise ValidationError("Backup preflight receipt does not match the staged plan")
+        row=self.get_backup_transfer(actor, plan_sha256)
+        self._authorize(actor, row["owner_scope"], (), "write")
+        payload=json.dumps(verified, sort_keys=True, separators=(",", ":"))
+        if row["status"] == "PREFLIGHT_VALIDATED":
+            if row["preflight_receipt_payload"] == verified:
+                return row
+            raise ValidationError("Backup transfer already has different preflight evidence")
+        if row["status"] != "STAGED":
+            raise ValidationError("Only a staged backup transfer may record preflight evidence")
+        self.connection.execute(
+            """UPDATE backup_transfer_outbox SET status='PREFLIGHT_VALIDATED',
+               preflight_receipt_payload=?, updated_at=?
+               WHERE plan_sha256=? AND status='STAGED'""",
+            (payload, now(), plan_sha256),
+        )
+        self.connection.commit()
+        self._audit(
+            actor, "VALIDATE_BACKUP_TRANSFER_PREFLIGHT", "ALLOWED",
+            "Synthetic adapter proved no encryption, upload, or network action",
+            details={"scope":"IAC", "plan_sha256":plan_sha256,
+                     "network_performed":False, "execution_authorized":False},
+        )
+        return self.get_backup_transfer(actor, plan_sha256)
+
+    def claim_authorized_backup_transfer(
+        self, actor: Actor, worker_id: str, *, lease_seconds: int = 300
+    ) -> dict[str, Any] | None:
+        if self.scope_profile != "IAC" or "IAC" not in actor.scopes:
+            raise AuthorizationError("Backup transfer worker requires the IAC database profile")
+        if not worker_id.strip():
+            raise ValidationError("Backup transfer worker ID is required")
+        if lease_seconds < 1 or lease_seconds > 900:
+            raise ValidationError("Backup transfer lease must be between 1 and 900 seconds")
+        if self.kill_switch_enabled():
+            self._audit(actor, "CLAIM_BACKUP_TRANSFER", "DENIED", "Kill switch is ON")
+            return None
+        stamp=now()
+        lease=(datetime.now(timezone.utc)+timedelta(seconds=lease_seconds)).isoformat()
+        self.connection.execute("BEGIN IMMEDIATE")
+        terminal=self.connection.execute(
+            """SELECT plan_sha256 FROM backup_transfer_outbox
+               WHERE status='AUTHORIZED' AND attempt_count>=max_attempts
+               AND (lease_owner IS NULL OR lease_expires_at<=?)""",
+            (stamp,),
+        ).fetchall()
+        self.connection.execute(
+            """UPDATE backup_transfer_outbox SET status='FAILED',
+               last_error='Lease expired after maximum attempts', updated_at=?,
+               lease_owner=NULL, lease_expires_at=NULL
+               WHERE status='AUTHORIZED' AND attempt_count>=max_attempts
+               AND (lease_owner IS NULL OR lease_expires_at<=?)""",
+            (stamp, stamp),
+        )
+        row=self.connection.execute(
+            """SELECT plan_sha256 FROM backup_transfer_outbox
+               WHERE status='AUTHORIZED' AND available_at<=?
+               AND attempt_count<max_attempts
+               AND (lease_owner IS NULL OR lease_expires_at<=?)
+               ORDER BY created_at, plan_sha256 LIMIT 1""",
+            (stamp, stamp),
+        ).fetchone()
+        if row is None:
+            self.connection.commit()
+            for item in terminal:
+                self._audit(
+                    actor, "FAIL_BACKUP_TRANSFER", "FAILED",
+                    "Lease expired after maximum attempts", item["plan_sha256"],
+                    {"scope":"IAC", "network_performed":False,
+                     "recovered_from_expired_lease":True},
+                )
+            return None
+        cursor=self.connection.execute(
+            """UPDATE backup_transfer_outbox SET lease_owner=?, lease_expires_at=?,
+               attempt_count=attempt_count+1, updated_at=?
+               WHERE plan_sha256=? AND status='AUTHORIZED'
+               AND (lease_owner IS NULL OR lease_expires_at<=?)""",
+            (worker_id, lease, stamp, row["plan_sha256"], stamp),
+        )
+        if cursor.rowcount != 1:
+            self.connection.rollback()
+            return None
+        self.connection.commit()
+        for item in terminal:
+            self._audit(
+                actor, "FAIL_BACKUP_TRANSFER", "FAILED",
+                "Lease expired after maximum attempts", item["plan_sha256"],
+                {"scope":"IAC", "network_performed":False,
+                 "recovered_from_expired_lease":True},
+            )
+        claimed=self.get_backup_transfer(actor, row["plan_sha256"])
+        self._audit(
+            actor, "CLAIM_BACKUP_TRANSFER", "ALLOWED",
+            "Authorized backup transfer lease acquired", row["plan_sha256"],
+            {"scope":"IAC", "worker_id":worker_id,
+             "attempt":claimed["attempt_count"], "network_performed":False},
+        )
+        return claimed
+
+    def fail_claimed_backup_transfer(
+        self, actor: Actor, plan_sha256: str, worker_id: str, error: str, *,
+        retry_seconds: int = 60,
+    ) -> str:
+        if not error.strip():
+            raise ValidationError("Backup transfer failure requires an error")
+        if secret_findings({"error":error}):
+            raise ValidationError("Secret-like material is prohibited in backup failures")
+        if retry_seconds < 0 or retry_seconds > 3600:
+            raise ValidationError("Backup transfer retry must be between 0 and 3600 seconds")
+        row=self.connection.execute(
+            """SELECT attempt_count, max_attempts FROM backup_transfer_outbox
+               WHERE plan_sha256=? AND status='AUTHORIZED' AND lease_owner=?""",
+            (plan_sha256, worker_id),
+        ).fetchone()
+        if row is None:
+            raise AuthorizationError("Worker does not hold the active backup transfer lease")
+        self._authorize(actor, "IAC", (), "write")
+        terminal=row["attempt_count"] >= row["max_attempts"]
+        status="FAILED" if terminal else "AUTHORIZED"
+        available=(datetime.now(timezone.utc)+timedelta(seconds=retry_seconds)).isoformat()
+        self.connection.execute(
+            """UPDATE backup_transfer_outbox SET status=?, available_at=?,
+               lease_owner=NULL, lease_expires_at=NULL, last_error=?, updated_at=?
+               WHERE plan_sha256=?""",
+            (status, available, error, now(), plan_sha256),
+        )
+        self.connection.commit()
+        self._audit(
+            actor, "FAIL_BACKUP_TRANSFER", "FAILED", error, plan_sha256,
+            {"scope":"IAC", "next_status":status, "network_performed":False},
+        )
+        return status
+
+    def assert_backup_transfer_execution_allowed(
+        self, actor: Actor, plan_sha256: str, worker_id: str, *, at: str | None = None,
+    ) -> dict[str, Any]:
+        """Recheck the live kill switch and lease before each irreversible stage."""
+        self._authorize(actor, "IAC", (), "write")
+        stamp = at or now()
+        try:
+            checked_at = datetime.fromisoformat(stamp)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("Backup execution guard time must be ISO-8601") from exc
+        if checked_at.tzinfo is None or checked_at.utcoffset() is None:
+            raise ValidationError("Backup execution guard time must include a timezone")
+        row = self.connection.execute(
+            "SELECT * FROM backup_transfer_outbox WHERE plan_sha256=?",
+            (plan_sha256,),
+        ).fetchone()
+        reason = None
+        if self.kill_switch_enabled():
+            reason = "Kill switch is ON"
+        elif row is None:
+            reason = "Backup transfer plan not found"
+        elif row["status"] != "AUTHORIZED" or not row["approval_id"]:
+            reason = "Backup transfer is not authorized"
+        elif row["lease_owner"] != worker_id or not row["lease_expires_at"]:
+            reason = "Worker does not hold the backup transfer lease"
+        elif datetime.fromisoformat(row["lease_expires_at"]) <= checked_at:
+            reason = "Backup transfer lease expired"
+        if reason:
+            self._audit(
+                actor, "GUARD_BACKUP_TRANSFER", "DENIED", reason, plan_sha256,
+                {"scope":"IAC", "worker_id":worker_id, "network_performed":False},
+            )
+            raise AuthorizationError(reason)
+        return self.get_backup_transfer(actor, plan_sha256)
+
+    def complete_claimed_backup_transfer(
+        self, actor: Actor, plan_sha256: str, worker_id: str,
+        receipt: dict[str, Any],
+    ) -> dict[str, Any]:
+        if self.kill_switch_enabled():
+            raise AuthorizationError("Kill switch is ON; backup completion denied")
+        stamp=now()
+        row=self.connection.execute(
+            """SELECT * FROM backup_transfer_outbox
+               WHERE plan_sha256=? AND status='AUTHORIZED' AND lease_owner=?
+               AND lease_expires_at>?""",
+            (plan_sha256, worker_id, stamp),
+        ).fetchone()
+        if row is None:
+            existing=self.connection.execute(
+                "SELECT * FROM backup_transfer_outbox WHERE plan_sha256=?",
+                (plan_sha256,),
+            ).fetchone()
+            if existing is not None and existing["status"] == "COMPLETED":
+                prior=json.loads(existing["receipt_payload"])
+                plan=json.loads(existing["plan_payload"])
+                if verify_backup_upload_receipt(receipt, plan) == prior:
+                    return self.get_backup_transfer(actor, plan_sha256)
+            raise AuthorizationError("Worker does not hold the active backup transfer lease")
+        self._authorize(actor, row["owner_scope"], (), "write")
+        plan=json.loads(row["plan_payload"])
+        verified=verify_backup_upload_receipt(receipt, plan)
+        payload=json.dumps(verified, sort_keys=True, separators=(",", ":"))
+        cursor=self.connection.execute(
+            """UPDATE backup_transfer_outbox SET status='COMPLETED',
+               receipt_payload=?, completed_at=?, updated_at=?, lease_owner=NULL,
+               lease_expires_at=NULL, last_error=NULL
+               WHERE plan_sha256=? AND status='AUTHORIZED' AND lease_owner=?
+               AND lease_expires_at>?""",
+            (payload, verified["uploaded_at"], stamp, plan_sha256, worker_id, stamp),
+        )
+        if cursor.rowcount != 1:
+            self.connection.rollback()
+            raise AuthorizationError("Backup transfer lease changed before completion")
+        self.connection.commit()
+        self._audit(
+            actor, "COMPLETE_BACKUP_TRANSFER", "ALLOWED",
+            "Encrypted retention-locked provider receipt verified", plan_sha256,
+            {"scope":"IAC", "provider":"BACKBLAZE_B2", "uploaded":True,
+             "network_performed":True, "object_lock_verified":True,
+             "encryption_verified":True},
+        )
+        return self.get_backup_transfer(actor, plan_sha256)
+
+    @staticmethod
+    def _backup_transfer_approval_conditions(row: dict[str, Any]) -> dict[str, Any]:
+        plan=row["plan_payload"]
+        return {
+            "plan_sha256":row["plan_sha256"],
+            "proposal_sha256":row["proposal_sha256"],
+            "backup_sha256":plan["backup_sha256"],
+            "provider":plan["provider"],
+            "destination_ref":plan["destination_ref"],
+            "data_region":plan["data_region"],
+            "provider_endpoint":plan["provider_endpoint"],
+            "provider_writer_identity_ref":plan["provider_writer_identity_ref"],
+            "client_encryption_key_ref":plan["client_encryption_key_ref"],
+            "object_ref":plan["object_ref"],
+            "retention_mode":plan["retention_mode"],
+            "retention_days":plan["retention_days"],
+            "window_start":plan["window_start"],
+            "window_end":plan["window_end"],
+            "max_cost_cad":plan["max_cost_cad"],
+        }
+
+    def request_backup_transfer_approval(
+        self, actor: Actor, plan_sha256: str, *, max_impact: str, expires_at: str
+    ) -> str:
+        row=self.get_backup_transfer(actor, plan_sha256)
+        self._authorize(actor, row["owner_scope"], (), "write")
+        if row["status"] != "PREFLIGHT_VALIDATED":
+            raise ValidationError("Backup transfer requires validated no-network preflight evidence")
+        conditions=self._backup_transfer_approval_conditions(row)
+        pending=self.connection.execute(
+            """SELECT record_id, max_impact, expires_at, conditions FROM approvals
+               WHERE action_type='RUN_INDEPENDENT_BACKUP_RESTORE_DRILL'
+               AND target=? AND scope='IAC' AND status='PENDING'
+               ORDER BY record_id""",
+            (row["approval_target"],),
+        ).fetchall()
+        exact=[item for item in pending if json.loads(item["conditions"]) == conditions]
+        if pending:
+            if (len(pending) == 1 and len(exact) == 1 and
+                    exact[0]["max_impact"] == max_impact and
+                    exact[0]["expires_at"] == expires_at):
+                return exact[0]["record_id"]
+            raise ValidationError("A different backup drill approval request is already pending")
+        return self.request_approval(
+            actor,
+            action_type="RUN_INDEPENDENT_BACKUP_RESTORE_DRILL",
+            target=row["approval_target"],
+            scope="IAC",
+            max_impact=max_impact,
+            expires_at=expires_at,
+            conditions=conditions,
+        )
+
+    def authorize_backup_transfer(
+        self, actor: Actor, plan_sha256: str, *, approval_id: str
+    ) -> dict[str, Any]:
+        if not actor.is_sean:
+            raise AuthorizationError("Only Sean may authorize a backup transfer")
+        row=self.get_backup_transfer(actor, plan_sha256)
+        if row["status"] == "AUTHORIZED" and row["approval_id"] == approval_id:
+            return row
+        if row["status"] != "PREFLIGHT_VALIDATED":
+            raise ValidationError("Backup transfer is not awaiting exact approval")
+        conditions=self._backup_transfer_approval_conditions(row)
+        try:
+            self.connection.execute("BEGIN IMMEDIATE")
+            self.consume_approval(
+                actor,
+                approval_id,
+                action_type="RUN_INDEPENDENT_BACKUP_RESTORE_DRILL",
+                target=row["approval_target"],
+                scope="IAC",
+                conditions=conditions,
+                commit=False,
+            )
+            cursor=self.connection.execute(
+                """UPDATE backup_transfer_outbox SET status='AUTHORIZED', approval_id=?,
+                   updated_at=? WHERE plan_sha256=? AND status='PREFLIGHT_VALIDATED'""",
+                (approval_id, now(), plan_sha256),
+            )
+            if cursor.rowcount != 1:
+                raise ValidationError("Backup transfer authorization raced with another update")
+            self._audit(
+                actor, "AUTHORIZE_BACKUP_TRANSFER", "ALLOWED",
+                "Exact single-use backup plan approval consumed", approval_id,
+                {"scope":"IAC", "plan_sha256":plan_sha256,
+                 "network_performed":False, "upload_performed":False}, commit=False,
+            )
+            self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
+        return self.get_backup_transfer(actor, plan_sha256)
 
     def stage_alert_delivery(self, actor: Actor, plan_id: str) -> dict[str, Any]:
         observation=self.get_alert_observation(actor, plan_id)
@@ -992,6 +1405,14 @@ class SeanOSStore:
         self, worker_id: str, scope: str, status: str, *, current_work_id: str | None = None,
         details: dict[str, Any] | None = None,
     ) -> None:
+        safe_details=details or {}
+        findings=secret_findings(safe_details)
+        if findings:
+            safe_details={
+                "sensitive_detail_redacted":True,
+                "finding_count":len(findings),
+                "finding_types":sorted({item["type"] for item in findings}),
+            }
         self.connection.execute(
             """INSERT INTO worker_heartbeats
                (worker_id, owner_scope, status, current_work_id, last_seen_at, details)
@@ -999,7 +1420,7 @@ class SeanOSStore:
                ON CONFLICT(worker_id) DO UPDATE SET owner_scope=excluded.owner_scope,
                status=excluded.status, current_work_id=excluded.current_work_id,
                last_seen_at=excluded.last_seen_at, details=excluded.details""",
-            (worker_id, scope, status, current_work_id, now(), json.dumps(details or {}, sort_keys=True)),
+            (worker_id, scope, status, current_work_id, now(), json.dumps(safe_details, sort_keys=True)),
         )
         self.connection.commit()
 
@@ -1041,6 +1462,10 @@ class SeanOSStore:
         delivery_counts={r["status"]:r["count"] for r in self.connection.execute(
             delivery_sql, delivery_parameters
         )}
+        backup_counts={r["status"]:r["count"] for r in self.connection.execute(
+            """SELECT status, COUNT(*) AS count FROM backup_transfer_outbox
+               GROUP BY status"""
+        )} if scope in {None, "IAC"} else {}
         budget_scopes=(scope,) if scope is not None else tuple(sorted(self.allowed_scopes))
         budgets=[self.budget_status(item_scope) for item_scope in budget_scopes]
         integrity=self.integrity_check()
@@ -1050,15 +1475,18 @@ class SeanOSStore:
                  and counts.get("DEAD_LETTER", 0) == 0
                  and counts.get("POLICY_BLOCKED", 0) == 0
                  and delivery_counts.get("FAILED", 0) == 0
+                 and backup_counts.get("FAILED", 0) == 0
                  and (not require_active_worker or bool(active_workers)))
         needs_attention=sum(
             counts.get(status, 0)
             for status in ("APPROVAL_BLOCKED", "BUDGET_BLOCKED", "POLICY_BLOCKED", "DEAD_LETTER")
         )
         needs_attention += delivery_counts.get("FAILED", 0)
+        needs_attention += backup_counts.get("FAILED", 0)
         return {"healthy": healthy, "kill_switch": self.kill_switch_enabled(),
                 "integrity": integrity, "queue": counts, "workers": workers,
                 "delivery_outbox":delivery_counts,
+                "backup_transfer_outbox":backup_counts,
                 "budgets": [b for b in budgets if b is not None],
                 "needs_attention": needs_attention,
                 "active_worker_count": len(active_workers)}
@@ -1283,6 +1711,14 @@ class SeanOSStore:
         priority: int = 100, max_attempts: int = 3, available_at: str | None = None,
     ) -> str:
         self._authorize(actor, scope, (), "write")
+        findings=secret_findings(payload)
+        if findings:
+            self._audit(
+                actor, "ENQUEUE_WORK", "DENIED",
+                "Secret-like material is prohibited in durable work payloads",
+                details={"finding_paths":[item["path"] for item in findings]},
+            )
+            raise ValidationError("Secret-like material is prohibited in durable work payloads")
         if max_attempts < 1 or max_attempts > 10:
             raise ValidationError("max_attempts must be between 1 and 10")
         work_id=str(uuid.uuid4()); stamp=now()
@@ -1340,6 +1776,7 @@ class SeanOSStore:
         approval_required: bool = False,
     ) -> str:
         status="APPROVAL_BLOCKED" if approval_required else "POLICY_BLOCKED"
+        reason=safe_persisted_text(reason)
         cursor=self.connection.execute(
             """UPDATE work_queue SET status=?, lease_owner=NULL, lease_expires_at=NULL,
                last_error=?, updated_at=?
@@ -1375,6 +1812,14 @@ class SeanOSStore:
     def record_action_result(
         self, actor: Actor, work_id: str, task_type: str, result: dict[str, Any],
     ) -> None:
+        findings=secret_findings(result)
+        if findings:
+            self._audit(
+                actor, "RECORD_ACTION_RESULT", "DENIED",
+                "Secret-like material is prohibited in durable action results", work_id,
+                {"finding_paths":[item["path"] for item in findings]},
+            )
+            raise ValidationError("Secret-like material is prohibited in durable action results")
         work=self.connection.execute("SELECT payload FROM work_queue WHERE id=?", (work_id,)).fetchone()
         payload=json.loads(work["payload"]) if work else {}
         cost=float(payload.get("estimated_cost_units", 0)) if isinstance(payload, dict) else 0
@@ -1390,6 +1835,14 @@ class SeanOSStore:
                               "rollback_status":"AVAILABLE"})
 
     def complete_work(self, actor: Actor, work_id: str, worker_id: str, result: dict[str, Any]) -> None:
+        findings=secret_findings(result)
+        if findings:
+            self._audit(
+                actor, "COMPLETE_WORK", "DENIED",
+                "Secret-like material is prohibited in completed work", work_id,
+                {"finding_paths":[item["path"] for item in findings]},
+            )
+            raise ValidationError("Secret-like material is prohibited in completed work")
         reservation=self.connection.execute(
             "SELECT units FROM cost_reservations WHERE work_id=?", (work_id,)
         ).fetchone()
@@ -1408,6 +1861,7 @@ class SeanOSStore:
                      "rollback_status":"AVAILABLE"})
 
     def fail_work(self, actor: Actor, work_id: str, worker_id: str, error: str, *, retry_seconds: int = 5) -> str:
+        error=safe_persisted_text(error)
         row=self.connection.execute(
             "SELECT attempts, max_attempts FROM work_queue WHERE id=? AND status='RUNNING' AND lease_owner=?",
             (work_id, worker_id),

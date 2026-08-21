@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sean_os import Actor, AuthorizationError, CommandGateway, SeanOSStore, ValidationError
+from sean_os.security import safe_persisted_text
 
 
 MAX_BODY_BYTES=1_000_000
@@ -56,6 +57,12 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
             self.send_header("X-Content-Type-Options", "nosniff")
             self.end_headers(); self.wfile.write(body)
 
+        def _invalid_request(self, error: BaseException):
+            self._json(400, {
+                "error":"invalid_request",
+                "message":safe_persisted_text(str(error), fallback="Request rejected"),
+            })
+
         def _authorized(self) -> bool:
             supplied=self.headers.get("Authorization", "")
             expected=f"Bearer {token}"
@@ -71,7 +78,7 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
             if self._authorized(): return True
             store.record_policy_decision(
                 Actor("unauthenticated-interface", frozenset()), None, False,
-                "Interface authentication failed", {"path":self.path},
+                "Interface authentication failed", {"path":urlparse(self.path).path},
             )
             self._json(401, {"error":"unauthorized"}); return False
 
@@ -79,7 +86,7 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
             if self._operator_authorized(): return True
             store.record_policy_decision(
                 Actor("unauthenticated-interface", frozenset()), affected_id, False,
-                "Operator authentication failed", {"path":self.path},
+                "Operator authentication failed", {"path":urlparse(self.path).path},
             )
             self._json(403, {"error":"operator_authorization_required"}); return False
 
@@ -110,7 +117,7 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
                 try:
                     self._json(200, {"records":gateway.list_records(entity_type)})
                 except ValidationError as exc:
-                    self._json(400, {"error":"invalid_request", "message":str(exc)})
+                    self._invalid_request(exc)
                 return
             if parts == ["v1","audit"]:
                 query=parse_qs(parsed.query)
@@ -118,7 +125,7 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
                     limit=int(query.get("limit", ["100"])[0])
                     self._json(200, {"events":gateway.audit_trace(limit=limit)})
                 except (ValidationError, ValueError) as exc:
-                    self._json(400, {"error":"invalid_request", "message":str(exc)})
+                    self._invalid_request(exc)
                 return
             if parts == ["v1","incidents"]:
                 self._json(200, {"incidents":gateway.active_incidents()}); return
@@ -129,10 +136,25 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
                         status=query.get("status", [None])[0]
                     )})
                 except ValidationError as exc:
-                    self._json(400, {"error":"invalid_request", "message":str(exc)})
+                    self._invalid_request(exc)
                 return
             if parts == ["v1","delivery-diagnostics"]:
                 self._json(200, {"diagnostics":gateway.delivery_diagnostics()}); return
+            if parts == ["v1","backup-transfers"]:
+                query=parse_qs(parsed.query)
+                try:
+                    self._json(200, {"transfers":gateway.backup_transfers(
+                        status=query.get("status", [None])[0]
+                    )})
+                except ValidationError as exc:
+                    self._invalid_request(exc)
+                return
+            if len(parts) == 3 and parts[:2] == ["v1","backup-transfers"]:
+                try:
+                    self._json(200, {"transfer":gateway.backup_transfer(parts[2])})
+                except (ValidationError, AuthorizationError):
+                    self._json(404, {"error":"not_found"})
+                return
             if len(parts) == 4 and parts[:2] == ["v1","commands"] and parts[3] in {"status","result"}:
                 work_id=parts[2]
                 try:
@@ -162,7 +184,7 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
                     self._json(200, {"incident":incident})
                 except (ValidationError, AuthorizationError, ValueError, TypeError,
                         json.JSONDecodeError) as exc:
-                    self._json(400, {"error":"invalid_request", "message":str(exc)})
+                    self._invalid_request(exc)
                 return
             if (len(parts) == 4 and parts[:2] == ["v1","deliveries"] and
                     parts[3] in {"decision", "authorize", "reset"}):
@@ -196,7 +218,34 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
                         self._json(200, {"delivery":delivery})
                 except (ValidationError, AuthorizationError, ValueError, TypeError,
                         json.JSONDecodeError) as exc:
-                    self._json(400, {"error":"invalid_request", "message":str(exc)})
+                    self._invalid_request(exc)
+                return
+            if (len(parts) == 4 and parts[:2] == ["v1","backup-transfers"] and
+                    parts[3] in {"decision", "authorize"}):
+                if not self._operator_auth_or_reject(parts[2]): return
+                try:
+                    request=self._request_json()
+                    if parts[3] == "decision":
+                        if (set(request) != {"approval_id","approve","reason"} or
+                                not isinstance(request["approval_id"], str) or
+                                not isinstance(request["approve"], bool) or
+                                not isinstance(request["reason"], str)):
+                            raise ValidationError("Backup approval decision fields are invalid")
+                        status=operator_gateway.decide_backup_approval(
+                            parts[2], approval_id=request["approval_id"],
+                            approve=request["approve"], reason=request["reason"],
+                        )
+                        self._json(200, {"approval_id":request["approval_id"], "status":status})
+                    else:
+                        if set(request) != {"approval_id"} or not isinstance(request["approval_id"], str):
+                            raise ValidationError("Backup authorization fields are invalid")
+                        transfer=operator_gateway.authorize_backup(
+                            parts[2], approval_id=request["approval_id"]
+                        )
+                        self._json(200, {"transfer":transfer})
+                except (ValidationError, AuthorizationError, ValueError, TypeError,
+                        json.JSONDecodeError) as exc:
+                    self._invalid_request(exc)
                 return
             if not self._auth_or_reject(): return
             if parts == ["v1","deliveries","stage"]:
@@ -207,7 +256,7 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
                     self._json(201, {"delivery":gateway.stage_delivery(request["plan_id"])})
                 except (ValidationError, AuthorizationError, ValueError, TypeError,
                         json.JSONDecodeError) as exc:
-                    self._json(400, {"error":"invalid_request", "message":str(exc)})
+                    self._invalid_request(exc)
                 return
             if (len(parts) == 4 and parts[:2] == ["v1","deliveries"] and
                     parts[3] == "request-approval"):
@@ -223,7 +272,23 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
                     self._json(201, {"approval_id":approval_id, "status":"PENDING"})
                 except (ValidationError, AuthorizationError, ValueError, TypeError,
                         json.JSONDecodeError) as exc:
-                    self._json(400, {"error":"invalid_request", "message":str(exc)})
+                    self._invalid_request(exc)
+                return
+            if (len(parts) == 4 and parts[:2] == ["v1","backup-transfers"] and
+                    parts[3] == "request-approval"):
+                try:
+                    request=self._request_json()
+                    if (set(request) != {"max_impact","expires_at"} or
+                            not all(isinstance(request[key], str) for key in request)):
+                        raise ValidationError("Backup approval request fields are invalid")
+                    approval_id=gateway.request_backup_approval(
+                        parts[2], max_impact=request["max_impact"],
+                        expires_at=request["expires_at"],
+                    )
+                    self._json(201, {"approval_id":approval_id, "status":"PENDING"})
+                except (ValidationError, AuthorizationError, ValueError, TypeError,
+                        json.JSONDecodeError) as exc:
+                    self._invalid_request(exc)
                 return
             if self.path != "/v1/commands":
                 self._json(404, {"error":"not_found"}); return
@@ -236,7 +301,7 @@ def handler_factory(store: SeanOSStore, token: str, operator_token: Optional[str
                 )
                 self._json(202, result)
             except (ValidationError, AuthorizationError, ValueError, TypeError, json.JSONDecodeError) as exc:
-                self._json(400, {"error":"invalid_request", "message":str(exc)})
+                self._invalid_request(exc)
 
     return Handler
 

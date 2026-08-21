@@ -2,7 +2,7 @@
 
 ## Release scope
 
-The IAC-owned local `main` branch is a release candidate against deployed baseline
+The IAC-owned release is deployed at exact commit `139daf3` against former baseline
 `1aa8762`. It adds only internal, reversible, synthetic-safe runtime capabilities:
 
 - secure incident and alert-delivery operations with distinct operator authority;
@@ -37,12 +37,12 @@ be recorded immediately before approval and push.
 - Infrastructure: no public domain, new service, new replica, new variable, or spend
   change is included.
 
-## Deployment and rollback gate
+## Deployment and rollback result
 
-No push is authorized by this artifact. Railway native backups are Pro-only on the
-current Hobby plan, so the candidate must create and verify its schema-v7 backup
-before migration and automatically restore it if migration fails. A separately
-approved recovery flag restores that backup and enters a database-closed hold before
-Railway rolls source and variables back to baseline `1aa8762`. This same-volume guard
-is not an independent disaster-recovery backup. See `PRODUCTION_DECISION.md` and
-`PRODUCTION_DRILL_PLAN.md` for the exact boundaries.
+Sean approved exact commit `139daf3`; GitHub run #8 passed and Railway deployment
+`5b6f3a83-404a-45e9-928a-2cf500d330d6` migrated v7→v12 behind a verified backup,
+then passed live health, isolation, privilege, and delayed-stability checks. A
+separately approved recovery flag can still restore that backup and enter a
+database-closed hold before Railway rolls source and variables back to baseline
+`1aa8762`. This same-volume guard is not an independent disaster-recovery backup.
+See `PRODUCTION_DECISION.md` and `PRODUCTION_DRILL_PLAN.md` for the exact boundaries.
