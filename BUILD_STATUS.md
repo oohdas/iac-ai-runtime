@@ -5,18 +5,17 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-21 00:36 EDT
-- Last continuous-goal checkpoint completed: 2026-08-21 00:37 EDT
-- Milestone selected: make the always-on Chief of Staff maintain the IAC portfolio before
-  producing a complete daily operational report
-- Run state: Continuous internal portfolio-maintenance milestone complete and verified;
-  production remains healthy and unchanged at schema v17
-- Last meaningful milestone: the local candidate now executes bounded daily portfolio
-  maintenance before reporting, with fail-safe handling for human-owned and legacy work
-- Deployed commit: `c9a400d1a97fcf656ae90ec5f3363864f16f3b22`
-- Runtime: Online on deployment `56f211f5-7497-46fd-a1f3-59e3ac8e9ff3`, private,
+- Last continuous-goal checkpoint started: 2026-08-21 05:33 EDT
+- Last continuous-goal checkpoint completed: 2026-08-21 05:36 EDT
+- Milestone selected: push and verify the exact approved schema-v18 continuous-runtime
+  candidate without enabling any backup, restore, secret, connector, or public exposure
+- Run state: Approved release deployed and verified healthy at schema v18
+- Last meaningful milestone: production now runs the bounded daily Chief of Staff portfolio
+  maintenance and complete operational-report path behind the existing safety boundaries
+- Deployed commit: `3a5ea9db5ee3574c64599d9171fb122bbcc861f8`
+- Runtime: Online on deployment `71463ab0-e310-4323-9982-15eb4aee0694`, private,
   one replica, original persistent `/data` volume attached
-- Remote main: `c9a400d`; Railway reports the exact commit as a successful deployment
+- Remote main: `3a5ea9d`; Railway reports the exact commit as a successful deployment
 - Concrete changes: the Toronto-local scheduler now durably dispatches one priority-40
   Chief of Staff maintenance task before priority-50 daily/weekly reports. Maintenance
   reviews no more than 100 current IAC ACTIVE/INCUBATOR projects, ranks only complete
@@ -30,19 +29,18 @@ Every automation run updates it, even when no notification is sent.
   recovery, all isolated backup/restore controls, continuous scheduling, missing-metric
   fail-safe behavior, human-ownership protection, active-versus-terminal approval semantics,
   deadline risk detection, and complete morning-report coverage. Production deployment
-  evidence remains the previously verified schema-v17 deployment `56f211f5`; no production
-  check was needed.
+  `71463ab0` created and verified the same-volume v17 backup, migrated to schema 18, and
+  reported database/foreign-key integrity OK, a current IDLE IAC worker, kill switch off,
+  zero attention items, and three successful scheduled tasks. Railway independently reports
+  the exact commit, SUCCESS/RUNNING, no domains, one replica, and the original ready volume.
 - Real data connected: No
 - Live integrations enabled: No
-- Current blocker: production remains at `c9a400d`/schema v17; the local schema-v18 plus
-  continuous-portfolio candidate is not pushed or deployed. No synthetic activation,
+- Current blocker: independent disaster recovery is still unproven. No synthetic activation,
   transfer authorization, application key, managed value, upload, restore staging, restore
-  key, download, or restore exists.
-- Next milestone: prepare an exact morning push/deployment approval package for the verified
-  local candidate. Production synthetic staging remains a later, separately approved
-  mutation after v18 is verified healthy.
-- Sean action required: none during unattended local work. After waking, Sean must approve
-  the exact candidate commit before any push/deployment. Production staging, writer key,
+  key, download, or isolated restore exists.
+- Next milestone: prepare the exact, separately gated production synthetic-staging package;
+  staging must precede any future writer-key or upload approval.
+- Sean action required: none for this completed release. Production staging, writer key,
   upload managed values, upload, restore staging, restore key, restore managed values,
   authorization, one-shot restore, billing change, real data, and deletion remain separate.
 
@@ -197,6 +195,14 @@ Every automation run updates it, even when no notification is sent.
     requests from terminal outcomes and include completed work, project changes, deadline
     risks, spend, and ranked priorities. All 253 tests and the canonical release gate pass;
     production is unchanged and no external effect or approval was consumed.
+47. Sean approved exact commit `3a5ea9d`; GitHub `main` and Railway deployment
+    `71463ab0-e310-4323-9982-15eb4aee0694` now report that exact release. Guarded startup
+    created and verified the source-schema-17 same-volume backup, migrated to schema 18,
+    and reported integrity OK. A live scope-correct check proved database/foreign-key
+    integrity, a current non-stale IDLE IAC worker, kill switch off, zero attention, and
+    three succeeded scheduled tasks. Railway reports SUCCESS/RUNNING, private exposure,
+    one replica, and the original ready volume. No key, secret, staging, upload, download,
+    restore, connector, real data, or billing change was introduced.
 
 ## Update contract
 

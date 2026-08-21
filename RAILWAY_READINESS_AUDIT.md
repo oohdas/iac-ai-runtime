@@ -1,6 +1,6 @@
 # IAC Railway Readiness Audit
 
-Audit date: 2026-08-20
+Audit date: 2026-08-21
 Mode: approved isolated pilot; synthetic/empty IAC data only
 
 ## Verified facts
@@ -59,6 +59,12 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
   2026-08-21 after a guarded v16→v17 backup/migration with integrity OK. The original
   volume remains attached, and staging, credentials, managed values, upload, and restore
   remain unconfigured and disabled.
+- Sean approved exact commit `3a5ea9d`; Railway deployment `71463ab0` succeeded on
+  2026-08-21 after a guarded v17→v18 backup/migration with integrity OK. A live IAC-profile
+  health check reported a current IDLE worker, kill switch off, zero attention, and three
+  succeeded scheduled tasks. Railway reports the exact commit, one RUNNING instance, no
+  domains, and the original ready `/data` volume. The Variables page still contains only
+  `SEAN_OS_DATABASE`; backup and restore configuration remains absent.
 - This same-volume guard protects this release but does not satisfy independent
   disaster recovery.
 

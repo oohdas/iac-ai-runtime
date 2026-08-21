@@ -2,7 +2,7 @@
 
 ## Release scope
 
-The IAC-owned release is deployed at exact commit `c9a400d1a97fcf656ae90ec5f3363864f16f3b22`
+The IAC-owned release is deployed at exact commit `3a5ea9db5ee3574c64599d9171fb122bbcc861f8`
 against former baseline `1aa8762`. It adds only internal, reversible, approval-gated
 runtime capabilities:
 
@@ -18,6 +18,11 @@ runtime capabilities:
   synthetic-only activation staging behind separately approved production gates;
 - schema-v17 durable activation evidence and a hash-bound, state-only approval operator
   that refuses configured execution or secrets and performs no claim, upload, or restore;
+- schema-v18 isolated-restore authorization, distinct read-only identity, exact-version
+  provider port, authenticated non-overwriting verification, and a separate default-off
+  one-shot worker that the continuous container cannot invoke;
+- bounded daily Chief of Staff portfolio maintenance before complete local-only reports,
+  with human-ownership and missing-metric fail-safe behavior;
 - direct Railway-style script import bootstrap, an exact regression test, and a
   post-build container runtime smoke check that rejects tracebacks or early exit.
 
@@ -58,4 +63,7 @@ execution and credential value disabled.
 Sean then approved exact commit `c9a400d`; Railway deployment `56f211f5` created a
 verified v16 backup, migrated to v17, passed integrity checking, and left production
 staging, execution, credentials, managed values, upload, and restore disabled.
+Sean then approved exact commit `3a5ea9d`; Railway deployment `71463ab0` created a
+verified v17 backup, migrated to v18, passed live IAC health and integrity checking,
+and left all backup/restore configuration and execution disabled.
 See `PRODUCTION_DECISION.md` and `PRODUCTION_DRILL_PLAN.md` for the exact boundaries.

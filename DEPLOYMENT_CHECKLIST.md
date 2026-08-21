@@ -2,7 +2,7 @@
 
 No deployment is authorized by this document. Every item must have evidence before production is enabled.
 
-The existing isolated pilot is authorized and deployed at exact commit `c9a400d`.
+The existing isolated pilot is authorized and deployed at exact commit `3a5ea9d`.
 Unchecked items apply to the next release or broader production activation; a push
 to `main` is a deployment and still requires explicit approval.
 
@@ -26,7 +26,7 @@ Current Railway evidence and unresolved controls are recorded in
   default, so it does not require another SQLite-connected service or replica.
 - [x] Container monitoring configuration is all-or-none and fails startup on
   partial, malformed, unsafe, or unbounded values; Railway remains unconfigured.
-- [x] The local continuous candidate schedules one bounded daily IAC portfolio review
+- [x] The deployed continuous runtime schedules one bounded daily IAC portfolio review
   before its report; it has no external effect, consumes no approval, may pause only
   agent-owned projects, and leaves projects with incomplete metrics unchanged.
 - [x] Worker starts through a privilege-dropping entrypoint, becomes Online within

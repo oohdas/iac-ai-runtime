@@ -7,15 +7,15 @@
 - Deployment branch: `main`
 - Railway behavior: existing automatic deployment on an approved `main` push
 - Former rollback baseline: `1aa8762`
-- Deployed release: exact commit `c9a400d1a97fcf656ae90ec5f3363864f16f3b22`
-- Railway deployment: `56f211f5-7497-46fd-a1f3-59e3ac8e9ff3`
+- Deployed release: exact commit `3a5ea9db5ee3574c64599d9171fb122bbcc861f8`
+- Railway deployment: `71463ab0-e310-4323-9982-15eb4aee0694`
 
 ## Release evidence
 
 - Canonical gate: `python3 scripts/verify_release.py`
-- Runtime tests: 223 passing in the deployed candidate's canonical local release gate
-- Schema: deployed production migrated from v16 to v17 behind the verified guard;
-  restart-safe synthetic activation evidence and the hash-bound state-only operator are deployed
+- Runtime tests: 253 passing in the deployed candidate's canonical local release gate
+- Schema: deployed production migrated from v17 to v18 behind the verified guard;
+  restart-safe restore authorization and continuous portfolio/report scheduling are deployed
 - Migration recovery: verified SHA-256 same-volume backup, automatic restore on
   migration failure, and explicit database-closed recovery hold
 - Recovery and kill-switch drills: included in the canonical gate
@@ -48,6 +48,11 @@
 9. Sean approved exact commit `c9a400d`; Railway deployment `56f211f5` succeeded,
    migrated v16→v17 behind another verified backup, passed integrity checking, and left
    staging, credentials, managed values, uploads, and restores disabled.
+10. Sean approved exact commit `3a5ea9d`; Railway deployment `71463ab0` succeeded,
+    migrated v17→v18 behind another verified backup, and passed a live IAC-profile check
+    with healthy integrity, current worker heartbeat, kill switch off, and zero attention.
+    The service remains private, one replica, and attached to the original ready volume;
+    backup and restore configuration remains absent.
 
 If recovery is required, follow the exact automatic or approval-gated recovery path
 in `PRODUCTION_DECISION.md`, then use Railway's selected baseline-deployment rollback
