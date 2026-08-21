@@ -89,6 +89,19 @@ Current Railway evidence and unresolved controls are recorded in
 - [x] An exact hash-bound supervised package binds the real Railway and Canada bucket
   identifiers to a synthetic-only pilot while authorizing no key, secret, push, deploy,
   upload, restore, network, or execution action.
+- [x] Local schema v18 adds a distinct isolated-restore outbox with evidence-bound
+  no-action staging, exact single-use Sean authorization, bounded leases/retries,
+  kill-switch enforcement, failed-work health, and terminal reconciliation hold.
+- [x] The local restore-key contract is read-only, bucket/prefix restricted, distinct
+  from the writer identity, expires within four hours, and excludes listing files,
+  write/delete/admin/retention/legal-hold/governance-bypass capability.
+- [x] The local exact-version read port and one-shot worker require a new private target,
+  reverify compliance retention, ciphertext/plaintext hashes, authenticated decryption,
+  SQLite integrity/foreign keys/schema/IAC profile, and are absent from the continuous
+  container entrypoint.
+- [x] A hash-bound state-only restore operator rejects stale reviews, wrong conditions,
+  configured execution/secrets, out-of-window use, and any claim/download/decrypt/restore
+  effect while staging, requesting, deciding, or authorizing durable state.
 - [ ] Create and place the exact approved writer key in the reviewed managed-secret
   destination; do not expose it in chat, files, logs, receipts, or source control.
 - [ ] An independently stored encrypted production backup is completed and locked;
@@ -110,6 +123,8 @@ Current Railway evidence and unresolved controls are recorded in
 - [x] Approve and verify exact candidate `f6bb665` push/deploy.
 - [x] Approve and verify exact candidate `c9a400d` push/deploy and guarded v16→v17 migration.
 - [ ] Approve production synthetic staging, state authorization, writer-key creation,
-  managed-value placement, one synthetic upload, and isolated restore as separate gates.
+  managed-value placement, one synthetic upload, restore staging, restore-key creation,
+  restore managed values, restore authorization, and one-shot isolated restore as
+  separate gates.
 - [ ] Any connection to Claude, email, calendar, ShopVox, QuickBooks Online, QNAP, RBC, or customers.
 - [ ] Any handler capable of sending messages, changing external records, deploying code, or moving money.

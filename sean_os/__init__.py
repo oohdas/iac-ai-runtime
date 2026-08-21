@@ -77,6 +77,43 @@ from .backup_operator import (
     request_exact_backup_approval,
     review_backup_transfer,
 )
+from .backup_restore import (
+    BackupRestoreError,
+    build_backup_restore_key_approval_package,
+    build_isolated_backup_restore_receipt,
+    build_isolated_backup_restore_plan,
+    synthetic_backup_restore_preflight,
+    validate_backup_restore_key_proposal,
+    verify_backup_restore_key_approval_package,
+    verify_isolated_backup_restore_plan,
+    verify_isolated_backup_restore_plan_against_evidence,
+    verify_isolated_backup_restore_receipt,
+    verify_synthetic_backup_restore_preflight,
+)
+from .backup_restore_execution import (
+    BackupRestoreExecutionError,
+    BackupRestoreExecutionReconciliationRequired,
+    BackupRestoreRuntimeConfig,
+    DownloadedBackupArtifact,
+    execute_claimed_backup_restore,
+    load_backup_restore_runtime_config,
+    validate_claimed_backup_restore,
+)
+from .backup_restore_provider import (
+    BackblazeS3DownloadPort,
+    BackupRestoreProviderError,
+)
+from .backup_restore_secrets import (
+    BackupRestoreSecretError,
+    build_backblaze_s3_restore_client,
+)
+from .backup_restore_operator import (
+    BackupRestoreOperatorError,
+    authorize_exact_restore_state,
+    decide_exact_restore_approval,
+    request_exact_restore_approval,
+    review_backup_restore,
+)
 from .monitoring import (
     EscalationRoute, RuntimeMonitor, acknowledge_alert_plan,
     capture_monitor_snapshot, classify_alerts, deduplicate_alert_plans,
@@ -120,6 +157,24 @@ __all__ = [
     "BackupOperatorError", "authorize_exact_backup_state",
     "decide_exact_backup_approval", "request_exact_backup_approval",
     "review_backup_transfer",
+    "BackupRestoreError", "build_backup_restore_key_approval_package",
+    "build_isolated_backup_restore_receipt",
+    "build_isolated_backup_restore_plan", "synthetic_backup_restore_preflight",
+    "validate_backup_restore_key_proposal",
+    "verify_backup_restore_key_approval_package",
+    "verify_isolated_backup_restore_plan",
+    "verify_isolated_backup_restore_plan_against_evidence",
+    "verify_isolated_backup_restore_receipt",
+    "verify_synthetic_backup_restore_preflight",
+    "BackupRestoreExecutionError", "BackupRestoreExecutionReconciliationRequired",
+    "BackupRestoreRuntimeConfig", "DownloadedBackupArtifact",
+    "execute_claimed_backup_restore", "load_backup_restore_runtime_config",
+    "validate_claimed_backup_restore",
+    "BackblazeS3DownloadPort", "BackupRestoreProviderError",
+    "BackupRestoreSecretError", "build_backblaze_s3_restore_client",
+    "BackupRestoreOperatorError", "authorize_exact_restore_state",
+    "decide_exact_restore_approval", "request_exact_restore_approval",
+    "review_backup_restore",
     "RuntimeMonitor", "acknowledge_alert_plan", "capture_monitor_snapshot",
     "classify_alerts", "deduplicate_alert_plans",
     "plan_alert_deliveries", "synthetic_delivery_receipt",

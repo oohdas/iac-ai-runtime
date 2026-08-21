@@ -376,6 +376,37 @@ CREATE TABLE IF NOT EXISTS backup_activation_evidence (
     recorded_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS backup_restore_outbox (
+    restore_plan_sha256 TEXT PRIMARY KEY CHECK (length(restore_plan_sha256) = 64),
+    owner_scope TEXT NOT NULL CHECK (owner_scope = 'IAC'),
+    approval_target TEXT NOT NULL,
+    upload_plan_sha256 TEXT NOT NULL CHECK (length(upload_plan_sha256) = 64),
+    upload_receipt_sha256 TEXT NOT NULL CHECK (length(upload_receipt_sha256) = 64),
+    restore_key_proposal_sha256 TEXT NOT NULL CHECK (
+        length(restore_key_proposal_sha256) = 64
+    ),
+    plan_payload TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN (
+        'STAGED','PREFLIGHT_VALIDATED','AUTHORIZED','RESTORED','FAILED',
+        'RECONCILIATION_REQUIRED'
+    )),
+    approval_id TEXT REFERENCES approvals(record_id),
+    attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+    max_attempts INTEGER NOT NULL DEFAULT 3 CHECK (max_attempts BETWEEN 1 AND 10),
+    available_at TEXT NOT NULL,
+    lease_owner TEXT,
+    lease_expires_at TEXT,
+    last_error TEXT,
+    preflight_receipt_payload TEXT,
+    receipt_payload TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_backup_restore_outbox_claim
+ON backup_restore_outbox(status, available_at, lease_expires_at, created_at);
+
 CREATE TRIGGER IF NOT EXISTS audit_log_no_update
 BEFORE UPDATE ON audit_log
 BEGIN

@@ -68,6 +68,17 @@ both remain default-off and injectable in tests.
   the `backups/` prefix, six read/verify/upload capabilities, and four hours; it
   explicitly excludes downloads, deletes, key/bucket administration, retention writes,
   legal holds, and governance bypass
+- A separate non-creating restore-key contract with read-only exact-object authority,
+  a distinct managed identity, a four-hour maximum, and no write/delete/admin capability
+- Schema-v18 durable isolated-restore staging, no-action preflight, exact single-use
+  Sean approval, bounded leases/retries, kill-switch checks, health escalation, and a
+  terminal manual-reconciliation hold whenever a plaintext destination may exist
+- A default-off one-shot restore worker that downloads only the approved object version,
+  rechecks compliance retention, provider and client encryption, hashes, SQLite integrity,
+  foreign keys, schema, and IAC profile, and can publish only a new private isolated file
+- A hash-bound restore operator workflow that stages/reviews safely and keeps approval,
+  key creation, secret placement, authorization, download, decryption, and execution as
+  separate gates; the continuous container worker cannot invoke the restore path
 - Primary-interface backup review/request routes with decision and authorization
   restricted to the separate Sean operator identity
 - Automated recovery drill with integrity and sentinel-record verification
@@ -129,6 +140,10 @@ python3 scripts/prepare_backup_transfer.py APPROVAL.json MANIFEST.json \
   --writer-identity-ref iac-vault-writer:backup-only-v1 \
   --client-encryption-key-ref iac-keyring:backup-key-v1
 python3 scripts/prepare_backup_writer_key.py backup-writer-key-proposal.example.json
+python3 scripts/prepare_backup_restore.py UPLOAD_PLAN.json UPLOAD_RECEIPT.json \
+  backup-restore-key-proposal.example.json \
+  --restore-target-ref isolated-restore:SYNTHETIC-IAC-V1 \
+  --window-start WINDOW_START --window-end WINDOW_END --max-cost-cad 1
 python3 scripts/prepare_supervised_backup_pilot.py FULL_CANDIDATE_COMMIT \
   2026-08-21T09:00:00-04:00 --duration-minutes 120
 python3 scripts/prepare_supervised_backup_activation.py IAC_DB DATA_VOLUME_WORKSPACE \
@@ -149,6 +164,8 @@ See [BACKUP_PROVIDER_DECISION.md](BACKUP_PROVIDER_DECISION.md) for the reviewed,
 non-executing independent-backup recommendation and exact approval boundary.
 See [SUPERVISED_BACKUP_ACTIVATION_RUNBOOK.md](SUPERVISED_BACKUP_ACTIVATION_RUNBOOK.md)
 for the separate staging, state-approval, credential, activation, and verification gates.
+See [ISOLATED_RESTORE_RUNBOOK.md](ISOLATED_RESTORE_RUNBOOK.md) for the separately
+approved, one-shot restore gates and failure/reconciliation rules.
 See [INTEGRATION_ROADMAP.md](INTEGRATION_ROADMAP.md) for connector ordering and activation boundaries.
 See [INTERFACE_CONTRACT.md](INTERFACE_CONTRACT.md) for the ChatGPT authority boundary.
 
@@ -160,6 +177,8 @@ and every new deployment remain approval-gated. The outbox adapter only produces
 synthetic receipts and has no network implementation. The Revenue Agent handles
 synthetic inputs only and has no outreach, CRM, pricing, quoting, or spending
 authority. Unknown actions never execute; approval-blocked work waits for an
-explicit, exact authorization rather than retrying. A reviewed Backblaze network port
-now exists locally, but it remains unconfigured and default-off; its supervised package
-authorizes no push, deployment, managed value, upload, restore, network, or execution.
+explicit, exact authorization rather than retrying. Reviewed Backblaze upload and
+exact-version read ports now exist locally, but both remain unconfigured and default-off.
+The restore path is a separate one-shot command that is not wired into the continuous
+container worker. Nothing in this repository authorizes a push, deployment, managed
+value, upload, restore, network call, or production execution.

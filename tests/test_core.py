@@ -252,7 +252,7 @@ class SeanOSCoreTests(unittest.TestCase):
         backup=Path(self.temp.name) / "verified-backup.db"
         manifest=self.store.backup_manifest(self.sean, backup)
         self.assertTrue(manifest["integrity_ok"])
-        self.assertEqual(manifest["schema_version"], 17)
+        self.assertEqual(manifest["schema_version"], 18)
         self.assertEqual(backup.stat().st_mode & 0o777, 0o600)
         with self.assertRaisesRegex(ValidationError, "must not already exist"):
             self.store.backup(self.sean, backup)
@@ -300,7 +300,7 @@ class SeanOSCoreTests(unittest.TestCase):
         connection.commit(); connection.close()
         migrated=SeanOSStore(legacy_path)
         try:
-            self.assertEqual(migrated.schema_version, 17)
+            self.assertEqual(migrated.schema_version, 18)
             self.assertEqual(
                 migrated.connection.execute("SELECT status FROM work_queue WHERE id=?", (work_id,)).fetchone()[0],
                 "QUEUED",
@@ -327,7 +327,7 @@ class SeanOSCoreTests(unittest.TestCase):
         finally:
             migrated.close()
 
-    def test_deployed_schema_v7_migrates_to_v17_without_losing_state(self):
+    def test_deployed_schema_v7_migrates_to_v18_without_losing_state(self):
         deployed_path=Path(self.temp.name) / "deployed-v7.db"
         deployed=SeanOSStore(deployed_path)
         record_id=deployed.create_record(
@@ -341,13 +341,14 @@ class SeanOSCoreTests(unittest.TestCase):
         for table in (
             "coding_delivery_requests", "coding_deliveries", "alert_delivery_outbox",
             "alert_incidents", "alert_observations", "backup_transfer_outbox",
+            "backup_activation_evidence", "backup_restore_outbox",
         ):
             connection.execute(f"DROP TABLE {table}")
         connection.commit(); connection.close()
 
         migrated=SeanOSStore(deployed_path)
         try:
-            self.assertEqual(migrated.schema_version, 17)
+            self.assertEqual(migrated.schema_version, 18)
             self.assertEqual(
                 migrated.get_record(self.sean, record_id)["payload"]["name"],
                 "Deployed migration sentinel",
@@ -360,7 +361,8 @@ class SeanOSCoreTests(unittest.TestCase):
             )
             expected={"alert_observations", "alert_incidents", "alert_delivery_outbox",
                       "coding_deliveries", "coding_delivery_requests",
-                      "backup_transfer_outbox"}
+                      "backup_transfer_outbox", "backup_activation_evidence",
+                      "backup_restore_outbox"}
             actual={row[0] for row in migrated.connection.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )}

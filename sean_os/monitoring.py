@@ -97,6 +97,16 @@ def classify_alerts(
             "BACKUP_TRANSFER_RECONCILIATION_REQUIRED", "CRITICAL",
             "Backup provider write result requires manual reconciliation",
         )
+    if int(health.get("backup_restore_outbox", {}).get("FAILED", 0)):
+        add(
+            "BACKUP_RESTORE_FAILED", "CRITICAL",
+            "Isolated backup restore exhausted retries or its approved window",
+        )
+    if int(health.get("backup_restore_outbox", {}).get("RECONCILIATION_REQUIRED", 0)):
+        add(
+            "BACKUP_RESTORE_RECONCILIATION_REQUIRED", "CRITICAL",
+            "Isolated restore artifact requires manual reconciliation",
+        )
     if backup_ok is False:
         add("BACKUP_FAILED", "CRITICAL", "Latest verified backup failed")
 

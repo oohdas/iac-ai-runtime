@@ -469,6 +469,205 @@ def main() -> int:
     if "Backup destination must not already exist" not in store_source or "os.O_EXCL" not in store_source:
         raise SystemExit("local backup sources must be private and non-overwriting")
     checks.append({"check": "default_off_reconciliation_safe_backup_worker", "passed": True})
+    restore_contract_source = (ROOT / "sean_os" / "backup_restore.py").read_text(
+        encoding="utf-8"
+    )
+    required_restore_contract_invariants = (
+        "sean-os-backblaze-restore-key-proposal/v1",
+        "sean-os-independent-backup-restore-plan/v1",
+        "sean-os-isolated-backup-restore-receipt/v1",
+        '"readFiles"',
+        '"writeFiles", "deleteFiles"',
+        '"write_authorized": False',
+        '"creation_authorized": False',
+        '"network_enabled": False',
+        '"download_authorized": False',
+        '"decrypt_authorized": False',
+        '"restore_authorized": False',
+        '"overwrite_permitted": False',
+        "Restore identity must be distinct from the writer identity",
+        "verify_backup_upload_receipt",
+        "object_lock_verified",
+        "database_integrity_ok",
+        '"scope_profile": "IAC"',
+    )
+    if any(
+        item not in restore_contract_source for item in required_restore_contract_invariants
+    ) or any(
+        forbidden in restore_contract_source for forbidden in forbidden_backup_networking
+    ):
+        raise SystemExit(
+            "isolated restore contract must remain read-only, exact-evidence-bound, and non-executing"
+        )
+    checks.append({"check": "least_privilege_isolated_restore_contract", "passed": True})
+    restore_execution_source = (
+        ROOT / "sean_os" / "backup_restore_execution.py"
+    ).read_text(encoding="utf-8")
+    required_restore_execution_invariants = (
+        '"SEAN_OS_BACKUP_RESTORE_EXECUTION"',
+        "Raw restore secrets are prohibited in runtime configuration",
+        "Disabled backup restore cannot retain partial configuration",
+        "Backup restore requires an active approved lease",
+        'guard("BEFORE_DOWNLOAD")',
+        'guard("AFTER_DOWNLOAD")',
+        'guard("AFTER_DECRYPTION")',
+        "class BackupRestoreExecutionReconciliationRequired",
+        "Published isolated restore requires manual reconciliation",
+        "PRAGMA integrity_check",
+        "PRAGMA foreign_key_check",
+        'scope_profile != "IAC"',
+        "Restore destination must be new and non-overwriting",
+    )
+    if any(
+        item not in restore_execution_source
+        for item in required_restore_execution_invariants
+    ) or any(
+        forbidden in restore_execution_source for forbidden in forbidden_backup_networking
+    ):
+        raise SystemExit(
+            "restore execution boundary must remain default-off, injected, isolated, and fail-closed"
+        )
+    checks.append({"check": "default_off_isolated_restore_execution", "passed": True})
+    restore_provider_source = (
+        ROOT / "sean_os" / "backup_restore_provider.py"
+    ).read_text(encoding="utf-8")
+    required_restore_provider_invariants = (
+        "class S3CompatibleRestoreClient(Protocol)",
+        "def get_object_retention",
+        "def get_object",
+        "VersionId=value[\"provider_version_ref\"]",
+        'retention_value.get("Mode") != "COMPLIANCE"',
+        'response.get("ServerSideEncryption") != "AES256"',
+        'os.O_EXCL',
+        'os.fchmod(descriptor, 0o600)',
+        "Backblaze encrypted object hash does not match upload evidence",
+        '"overwrite_performed":False',
+        '"credentials_persisted":False',
+    )
+    forbidden_restore_provider = forbidden_provider_construction + (
+        "put_object", "delete_object", "list_objects", "list_object_versions",
+    )
+    if any(
+        item not in restore_provider_source for item in required_restore_provider_invariants
+    ) or any(
+        forbidden in restore_provider_source for forbidden in forbidden_restore_provider
+    ):
+        raise SystemExit(
+            "restore provider port must remain exact-version, read-only, private, and injected"
+        )
+    checks.append({"check": "read_only_exact_version_restore_port", "passed": True})
+    restore_secret_source = (
+        ROOT / "sean_os" / "backup_restore_secrets.py"
+    ).read_text(encoding="utf-8")
+    required_restore_secret_invariants = (
+        'RESTORE_KEY_ID_VARIABLE = "SEAN_OS_MANAGED_B2_RESTORE_KEY_ID"',
+        'RESTORE_APPLICATION_KEY_VARIABLE = "SEAN_OS_MANAGED_B2_RESTORE_APPLICATION_KEY"',
+        'retries={"mode":"standard", "total_max_attempts":1}',
+        's3={"addressing_style":"path", "payload_signing_enabled":True}',
+        "ignore_configured_endpoint_urls=True",
+        "aws_access_key_id=key_id",
+        "aws_secret_access_key=application_key",
+    )
+    if any(
+        item not in restore_secret_source for item in required_restore_secret_invariants
+    ):
+        raise SystemExit(
+            "restore secret factory must remain distinct, Canada-bound, signed, and non-retrying"
+        )
+    restore_worker_source = (ROOT / "scripts" / "restore_worker.py").read_text(
+        encoding="utf-8"
+    )
+    required_restore_worker_invariants = (
+        "process_backup_restore_once",
+        "claim_authorized_backup_restore",
+        "client_factory(environment, config)",
+        "assert_backup_restore_execution_allowed",
+        "hold_claimed_backup_restore_for_reconciliation",
+        "Published isolated restore requires manual reconciliation",
+        "Restore destination must be new inside the isolated directory",
+    )
+    if any(
+        item not in restore_worker_source for item in required_restore_worker_invariants
+    ):
+        raise SystemExit("one-shot restore worker must remain isolated and reconciliation-safe")
+    if restore_worker_source.index("claim_authorized_backup_restore(") > restore_worker_source.index(
+        "client_factory(environment, config)"
+    ):
+        raise SystemExit("restore worker must claim exact authorization before resolving secrets")
+    if "restore_worker.py" in entrypoint or "backup_restore" in worker_source:
+        raise SystemExit("isolated restore worker must never run through the continuous container worker")
+    checks.append({"check": "separate_one_shot_restore_worker", "passed": True})
+    required_restore_outbox_invariants = (
+        "CREATE TABLE IF NOT EXISTS backup_restore_outbox",
+        "'STAGED','PREFLIGHT_VALIDATED','AUTHORIZED','RESTORED','FAILED'",
+        "'RECONCILIATION_REQUIRED'",
+        "restore_key_proposal_sha256 TEXT NOT NULL",
+        "approval_id TEXT REFERENCES approvals(record_id)",
+        "idx_backup_restore_outbox_claim",
+    )
+    required_restore_authorization_invariants = (
+        "stage_backup_restore",
+        "record_backup_restore_preflight",
+        "request_backup_restore_approval",
+        "authorize_backup_restore",
+        'action_type="RUN_ISOLATED_BACKUP_RESTORE"',
+        "claim_authorized_backup_restore",
+        "assert_backup_restore_execution_allowed",
+        "fail_claimed_backup_restore",
+        "hold_claimed_backup_restore_for_reconciliation",
+        '"automatic_retry_permitted":False',
+        "Backup restore lease must be between 1 and 900 seconds",
+        "complete_claimed_backup_restore",
+        "verify_isolated_backup_restore_receipt",
+        'restore_counts.get("FAILED", 0) == 0',
+    )
+    if any(
+        item not in schema_source for item in required_restore_outbox_invariants
+    ) or any(
+        item not in store_source for item in required_restore_authorization_invariants
+    ):
+        raise SystemExit(
+            "isolated restore authorization must remain durable, exact, leased, and health-visible"
+        )
+    checks.append({"check": "durable_isolated_restore_authorization", "passed": True})
+    restore_operator_source = (
+        ROOT / "sean_os" / "backup_restore_operator.py"
+    ).read_text(encoding="utf-8")
+    restore_operator_cli = (ROOT / "scripts" / "restore_operator.py").read_text(
+        encoding="utf-8"
+    )
+    required_restore_operator_invariants = (
+        "sean-os-backup-restore-operator-review/v1",
+        "Operator review is stale; review the restore again",
+        "Only a validated no-action restore preflight may request approval",
+        "State authorization requires all restore execution and secret values absent",
+        "Restore state authorization is outside the exact execution window",
+        '"network_performed": False',
+        '"downloaded": False',
+        '"decrypted": False',
+        '"restored": False',
+        '"restore_claimed": False',
+        "store.authorize_backup_restore",
+    )
+    required_restore_operator_cli_invariants = (
+        'Actor("iac-restore-interface", frozenset({"IAC"}))',
+        "Actor.sean()",
+        '"restore_operator_request_rejected"',
+        '"--expected-review-sha256"',
+        '"--confirm-plan-sha256"',
+    )
+    if any(
+        item not in restore_operator_source for item in required_restore_operator_invariants
+    ) or any(
+        item not in restore_operator_cli for item in required_restore_operator_cli_invariants
+    ) or any(
+        forbidden in restore_operator_source + restore_operator_cli
+        for forbidden in forbidden_backup_networking
+    ):
+        raise SystemExit(
+            "restore operator must remain hash-bound, state-only, bounded, and no-network"
+        )
+    checks.append({"check": "hash_bound_state_only_restore_operator", "passed": True})
     command_source = (ROOT / "sean_os" / "commands.py").read_text(encoding="utf-8")
     required_backup_interface_invariants = (
         "backup-transfers",

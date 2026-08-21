@@ -17,6 +17,12 @@ from .backup_adapter import (
     verify_backup_transfer_plan,
     verify_synthetic_backup_adapter_receipt,
 )
+from .backup_restore import (
+    verify_isolated_backup_restore_receipt,
+    verify_isolated_backup_restore_plan,
+    verify_isolated_backup_restore_plan_against_evidence,
+    verify_synthetic_backup_restore_preflight,
+)
 
 SCOPES = {"PERSONAL", "IAC", "SHARED"}
 ENTITY_TYPES = {"GOAL", "IDEA", "PROJECT", "TASK", "DECISION", "KNOWLEDGE", "AGENT", "APPROVAL"}
@@ -865,6 +871,484 @@ class SeanOSStore:
             raise
         return self.get_backup_transfer(actor, plan_sha256)
 
+    def stage_backup_restore(
+        self, actor: Actor, plan: dict[str, Any], upload_plan: dict[str, Any],
+        upload_receipt: dict[str, Any], restore_key_package: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Durably stage one evidence-bound restore while leaving all action disabled."""
+        if self.scope_profile != "IAC":
+            raise AuthorizationError("Backup restore outbox requires an IAC database profile")
+        self._authorize(actor, "IAC", (), "write")
+        verified=verify_isolated_backup_restore_plan_against_evidence(
+            plan, upload_plan, upload_receipt, restore_key_package
+        )
+        payload=json.dumps(verified, sort_keys=True, separators=(",", ":"))
+        existing=self.connection.execute(
+            "SELECT plan_payload FROM backup_restore_outbox WHERE restore_plan_sha256=?",
+            (verified["plan_sha256"],),
+        ).fetchone()
+        if existing is not None:
+            if existing["plan_payload"] != payload:
+                raise ValidationError("Backup restore plan hash is bound to different evidence")
+            return self.get_backup_restore(actor, verified["plan_sha256"])
+        stamp=now()
+        self.connection.execute(
+            """INSERT INTO backup_restore_outbox
+               (restore_plan_sha256, owner_scope, approval_target, upload_plan_sha256,
+                upload_receipt_sha256, restore_key_proposal_sha256, plan_payload,
+                status, available_at, created_at, updated_at)
+               VALUES (?, 'IAC', ?, ?, ?, ?, ?, 'STAGED', ?, ?, ?)""",
+            (verified["plan_sha256"], verified["approval_target"],
+             verified["upload_plan_sha256"], verified["upload_receipt_sha256"],
+             verified["restore_key_proposal_sha256"], payload, stamp, stamp, stamp),
+        )
+        self.connection.commit()
+        self._audit(
+            actor, "STAGE_BACKUP_RESTORE", "ALLOWED",
+            "Exact isolated restore plan staged without execution", verified["plan_sha256"],
+            {"scope":"IAC", "network_enabled":False, "download_authorized":False,
+             "decrypt_authorized":False, "restore_authorized":False},
+        )
+        return self.get_backup_restore(actor, verified["plan_sha256"])
+
+    def get_backup_restore(self, actor: Actor, plan_sha256: str) -> dict[str, Any]:
+        row=self.connection.execute(
+            "SELECT * FROM backup_restore_outbox WHERE restore_plan_sha256=?",
+            (plan_sha256,),
+        ).fetchone()
+        if row is None:
+            raise ValidationError("Backup restore plan not found")
+        self._authorize(actor, row["owner_scope"], (), "read")
+        result=dict(row)
+        result["plan_payload"]=json.loads(result["plan_payload"])
+        result["preflight_receipt_payload"]=(
+            json.loads(result["preflight_receipt_payload"])
+            if result["preflight_receipt_payload"] else None
+        )
+        result["receipt_payload"]=(
+            json.loads(result["receipt_payload"]) if result["receipt_payload"] else None
+        )
+        return result
+
+    def list_backup_restores(
+        self, actor: Actor, *, status: str | None = None,
+    ) -> list[dict[str, Any]]:
+        self._authorize(actor, "IAC", (), "read")
+        allowed={
+            "STAGED", "PREFLIGHT_VALIDATED", "AUTHORIZED", "RESTORED", "FAILED",
+            "RECONCILIATION_REQUIRED",
+        }
+        if status is not None and status not in allowed:
+            raise ValidationError("Unknown backup restore status")
+        query="SELECT restore_plan_sha256 FROM backup_restore_outbox"
+        parameters: tuple[Any, ...]=()
+        if status is not None:
+            query += " WHERE status=?"; parameters=(status,)
+        query += " ORDER BY created_at, restore_plan_sha256"
+        rows=self.connection.execute(query, parameters).fetchall()
+        result=[self.get_backup_restore(actor, row["restore_plan_sha256"]) for row in rows]
+        self._audit(
+            actor, "LIST_BACKUP_RESTORES", "ALLOWED",
+            "Scope-safe isolated restore review returned",
+            details={"scope":"IAC", "status":status, "result_count":len(result)},
+        )
+        return result
+
+    def record_backup_restore_preflight(
+        self, actor: Actor, plan_sha256: str, receipt: dict[str, Any],
+    ) -> dict[str, Any]:
+        verified=verify_synthetic_backup_restore_preflight(receipt)
+        if verified["restore_plan_sha256"] != plan_sha256:
+            raise ValidationError("Backup restore preflight does not match the staged plan")
+        row=self.get_backup_restore(actor, plan_sha256)
+        self._authorize(actor, row["owner_scope"], (), "write")
+        if verified["upload_receipt_sha256"] != row["upload_receipt_sha256"]:
+            raise ValidationError("Backup restore preflight does not match upload evidence")
+        if row["status"] == "PREFLIGHT_VALIDATED":
+            if row["preflight_receipt_payload"] == verified:
+                return row
+            raise ValidationError("Backup restore already has different preflight evidence")
+        if row["status"] != "STAGED":
+            raise ValidationError("Only a staged backup restore may record preflight evidence")
+        payload=json.dumps(verified, sort_keys=True, separators=(",", ":"))
+        self.connection.execute(
+            """UPDATE backup_restore_outbox SET status='PREFLIGHT_VALIDATED',
+               preflight_receipt_payload=?, updated_at=?
+               WHERE restore_plan_sha256=? AND status='STAGED'""",
+            (payload, now(), plan_sha256),
+        )
+        self.connection.commit()
+        self._audit(
+            actor, "VALIDATE_BACKUP_RESTORE_PREFLIGHT", "ALLOWED",
+            "Restore evidence validated without credentials, network, download, or decryption",
+            plan_sha256,
+            {"scope":"IAC", "network_performed":False, "execution_authorized":False},
+        )
+        return self.get_backup_restore(actor, plan_sha256)
+
+    @staticmethod
+    def _backup_restore_approval_conditions(row: dict[str, Any]) -> dict[str, Any]:
+        plan=row["plan_payload"]
+        return {
+            "restore_plan_sha256":row["restore_plan_sha256"],
+            "upload_plan_sha256":row["upload_plan_sha256"],
+            "upload_receipt_sha256":row["upload_receipt_sha256"],
+            "restore_key_proposal_sha256":row["restore_key_proposal_sha256"],
+            "provider":plan["provider"],
+            "data_region":plan["data_region"],
+            "provider_endpoint":plan["provider_endpoint"],
+            "destination_ref":plan["destination_ref"],
+            "object_ref":plan["object_ref"],
+            "provider_version_ref":plan["provider_version_ref"],
+            "provider_restore_identity_ref":plan["provider_restore_identity_ref"],
+            "client_encryption_key_ref":plan["client_encryption_key_ref"],
+            "ciphertext_sha256":plan["ciphertext_sha256"],
+            "expected_plaintext_sha256":plan["expected_plaintext_sha256"],
+            "restore_target_ref":plan["restore_target_ref"],
+            "window_start":plan["window_start"],
+            "window_end":plan["window_end"],
+            "max_cost_cad":plan["max_cost_cad"],
+            "overwrite_permitted":False,
+        }
+
+    def request_backup_restore_approval(
+        self, actor: Actor, plan_sha256: str, *, max_impact: str, expires_at: str,
+    ) -> str:
+        row=self.get_backup_restore(actor, plan_sha256)
+        self._authorize(actor, row["owner_scope"], (), "write")
+        if row["status"] != "PREFLIGHT_VALIDATED":
+            raise ValidationError("Backup restore requires validated no-action preflight evidence")
+        try:
+            expiry=datetime.fromisoformat(expires_at)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("Backup restore approval expiry must be ISO-8601") from exc
+        if expiry.tzinfo is None or expiry.utcoffset() is None:
+            raise ValidationError("Backup restore approval expiry must include a timezone")
+        if expiry > datetime.fromisoformat(row["plan_payload"]["window_end"]):
+            raise ValidationError("Backup restore approval cannot outlive the restore window")
+        conditions=self._backup_restore_approval_conditions(row)
+        pending=self.connection.execute(
+            """SELECT record_id, max_impact, expires_at, conditions FROM approvals
+               WHERE action_type='RUN_ISOLATED_BACKUP_RESTORE' AND target=?
+               AND scope='IAC' AND status='PENDING' ORDER BY record_id""",
+            (row["approval_target"],),
+        ).fetchall()
+        active=[]
+        for approval in pending:
+            if datetime.fromisoformat(approval["expires_at"]) <= datetime.now(timezone.utc):
+                self.connection.execute(
+                    "UPDATE approvals SET status='EXPIRED' WHERE record_id=?",
+                    (approval["record_id"],),
+                )
+            else:
+                active.append(approval)
+        if len(active) != len(pending):
+            self.connection.commit()
+        exact=[item for item in active if json.loads(item["conditions"]) == conditions]
+        if active:
+            if (
+                len(active) == 1 and len(exact) == 1
+                and exact[0]["max_impact"] == max_impact
+                and exact[0]["expires_at"] == expires_at
+            ):
+                return exact[0]["record_id"]
+            raise ValidationError("A different isolated restore approval is already pending")
+        return self.request_approval(
+            actor, action_type="RUN_ISOLATED_BACKUP_RESTORE",
+            target=row["approval_target"], scope="IAC", max_impact=max_impact,
+            expires_at=expires_at, conditions=conditions,
+        )
+
+    def authorize_backup_restore(
+        self, actor: Actor, plan_sha256: str, *, approval_id: str,
+        at: str | None = None,
+    ) -> dict[str, Any]:
+        if not actor.is_sean:
+            raise AuthorizationError("Only Sean may authorize an isolated backup restore")
+        row=self.get_backup_restore(actor, plan_sha256)
+        if row["status"] == "AUTHORIZED" and row["approval_id"] == approval_id:
+            return row
+        if row["status"] != "PREFLIGHT_VALIDATED":
+            raise ValidationError("Backup restore is not awaiting exact approval")
+        stamp=at or now()
+        try:
+            instant=datetime.fromisoformat(stamp)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("Backup restore authorization time must be ISO-8601") from exc
+        if instant.tzinfo is None or instant.utcoffset() is None:
+            raise ValidationError("Backup restore authorization time must include a timezone")
+        plan=row["plan_payload"]
+        if not datetime.fromisoformat(plan["window_start"]) <= instant <= datetime.fromisoformat(
+            plan["window_end"]
+        ):
+            raise ValidationError("Backup restore authorization is outside the exact window")
+        conditions=self._backup_restore_approval_conditions(row)
+        try:
+            self.connection.execute("BEGIN IMMEDIATE")
+            self.consume_approval(
+                actor, approval_id, action_type="RUN_ISOLATED_BACKUP_RESTORE",
+                target=row["approval_target"], at=stamp, scope="IAC",
+                conditions=conditions, commit=False,
+            )
+            cursor=self.connection.execute(
+                """UPDATE backup_restore_outbox SET status='AUTHORIZED', approval_id=?,
+                   updated_at=? WHERE restore_plan_sha256=?
+                   AND status='PREFLIGHT_VALIDATED'""",
+                (approval_id, stamp, plan_sha256),
+            )
+            if cursor.rowcount != 1:
+                raise ValidationError("Backup restore authorization raced with another update")
+            self._audit(
+                actor, "AUTHORIZE_BACKUP_RESTORE", "ALLOWED",
+                "Exact single-use isolated restore approval consumed", plan_sha256,
+                {"scope":"IAC", "network_performed":False, "downloaded":False,
+                 "decrypted":False, "restored":False}, commit=False,
+            )
+            self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
+        return self.get_backup_restore(actor, plan_sha256)
+
+    def claim_authorized_backup_restore(
+        self, actor: Actor, worker_id: str, *, lease_seconds: int = 300,
+        at: str | None = None,
+    ) -> dict[str, Any] | None:
+        if self.scope_profile != "IAC" or "IAC" not in actor.scopes:
+            raise AuthorizationError("Backup restore worker requires the IAC database profile")
+        if not worker_id.strip():
+            raise ValidationError("Backup restore worker ID is required")
+        if lease_seconds < 1 or lease_seconds > 900:
+            raise ValidationError("Backup restore lease must be between 1 and 900 seconds")
+        stamp=at or now()
+        try:
+            instant=datetime.fromisoformat(stamp)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("Backup restore claim time must be ISO-8601") from exc
+        if instant.tzinfo is None or instant.utcoffset() is None:
+            raise ValidationError("Backup restore claim time must include a timezone")
+        if self.kill_switch_enabled():
+            self._audit(actor, "CLAIM_BACKUP_RESTORE", "DENIED", "Kill switch is ON")
+            return None
+        self.connection.execute("BEGIN IMMEDIATE")
+        rows=self.connection.execute(
+            """SELECT * FROM backup_restore_outbox WHERE status='AUTHORIZED'
+               AND available_at<=? AND (lease_owner IS NULL OR lease_expires_at<=?)
+               ORDER BY created_at, restore_plan_sha256""",
+            (stamp, stamp),
+        ).fetchall()
+        selected=None; terminal=[]
+        for row in rows:
+            plan=verify_isolated_backup_restore_plan(json.loads(row["plan_payload"]))
+            if row["attempt_count"] >= row["max_attempts"]:
+                terminal.append((row["restore_plan_sha256"], "maximum attempts"))
+            elif instant >= datetime.fromisoformat(plan["window_end"]):
+                terminal.append((row["restore_plan_sha256"], "approved window expired"))
+            elif instant >= datetime.fromisoformat(plan["window_start"]):
+                selected=row
+                break
+        for item, reason in terminal:
+            self.connection.execute(
+                """UPDATE backup_restore_outbox SET status='FAILED',
+                   last_error=?, updated_at=?, lease_owner=NULL, lease_expires_at=NULL
+                   WHERE restore_plan_sha256=? AND status='AUTHORIZED'""",
+                (f"Restore lease unavailable: {reason}", stamp, item),
+            )
+        if selected is None:
+            self.connection.commit()
+            for item, reason in terminal:
+                self._audit(
+                    actor, "FAIL_BACKUP_RESTORE", "FAILED",
+                    f"Restore lease unavailable: {reason}", item,
+                    {"scope":"IAC", "network_performed":False},
+                )
+            return None
+        selected_plan=verify_isolated_backup_restore_plan(
+            json.loads(selected["plan_payload"])
+        )
+        lease=min(
+            instant+timedelta(seconds=lease_seconds),
+            datetime.fromisoformat(selected_plan["window_end"]),
+        ).isoformat()
+        cursor=self.connection.execute(
+            """UPDATE backup_restore_outbox SET lease_owner=?, lease_expires_at=?,
+               attempt_count=attempt_count+1, updated_at=?
+               WHERE restore_plan_sha256=? AND status='AUTHORIZED'
+               AND (lease_owner IS NULL OR lease_expires_at<=?)""",
+            (worker_id, lease, stamp, selected["restore_plan_sha256"], stamp),
+        )
+        if cursor.rowcount != 1:
+            self.connection.rollback(); return None
+        self.connection.commit()
+        for item, reason in terminal:
+            self._audit(
+                actor, "FAIL_BACKUP_RESTORE", "FAILED",
+                f"Restore lease unavailable: {reason}", item,
+                {"scope":"IAC", "network_performed":False},
+            )
+        claimed=self.get_backup_restore(actor, selected["restore_plan_sha256"])
+        self._audit(
+            actor, "CLAIM_BACKUP_RESTORE", "ALLOWED",
+            "Authorized isolated restore lease acquired", selected["restore_plan_sha256"],
+            {"scope":"IAC", "worker_id":worker_id,
+             "attempt":claimed["attempt_count"], "network_performed":False},
+        )
+        return claimed
+
+    def assert_backup_restore_execution_allowed(
+        self, actor: Actor, plan_sha256: str, worker_id: str, *, at: str | None = None,
+    ) -> dict[str, Any]:
+        self._authorize(actor, "IAC", (), "write")
+        stamp=at or now()
+        try:
+            instant=datetime.fromisoformat(stamp)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("Backup restore guard time must be ISO-8601") from exc
+        if instant.tzinfo is None or instant.utcoffset() is None:
+            raise ValidationError("Backup restore guard time must include a timezone")
+        row=self.connection.execute(
+            "SELECT * FROM backup_restore_outbox WHERE restore_plan_sha256=?",
+            (plan_sha256,),
+        ).fetchone()
+        reason=None
+        if self.kill_switch_enabled():
+            reason="Kill switch is ON"
+        elif row is None:
+            reason="Backup restore plan not found"
+        elif row["status"] != "AUTHORIZED" or not row["approval_id"]:
+            reason="Backup restore is not authorized"
+        elif row["lease_owner"] != worker_id or not row["lease_expires_at"]:
+            reason="Worker does not hold the backup restore lease"
+        elif datetime.fromisoformat(row["lease_expires_at"]) <= instant:
+            reason="Backup restore lease expired"
+        else:
+            plan=verify_isolated_backup_restore_plan(json.loads(row["plan_payload"]))
+            if not datetime.fromisoformat(plan["window_start"]) <= instant <= datetime.fromisoformat(
+                plan["window_end"]
+            ):
+                reason="Backup restore is outside the exact approved window"
+        if reason:
+            self._audit(
+                actor, "GUARD_BACKUP_RESTORE", "DENIED", reason, plan_sha256,
+                {"scope":"IAC", "worker_id":worker_id, "network_performed":False},
+            )
+            raise AuthorizationError(reason)
+        return self.get_backup_restore(actor, plan_sha256)
+
+    def fail_claimed_backup_restore(
+        self, actor: Actor, plan_sha256: str, worker_id: str, error: str, *,
+        retry_seconds: int = 60,
+    ) -> str:
+        if not error.strip():
+            raise ValidationError("Backup restore failure requires an error")
+        if secret_findings({"error":error}):
+            raise ValidationError("Secret-like material is prohibited in restore failures")
+        if retry_seconds < 0 or retry_seconds > 3600:
+            raise ValidationError("Backup restore retry must be between 0 and 3600 seconds")
+        row=self.connection.execute(
+            """SELECT attempt_count, max_attempts FROM backup_restore_outbox
+               WHERE restore_plan_sha256=? AND status='AUTHORIZED' AND lease_owner=?""",
+            (plan_sha256, worker_id),
+        ).fetchone()
+        if row is None:
+            raise AuthorizationError("Worker does not hold the active backup restore lease")
+        self._authorize(actor, "IAC", (), "write")
+        terminal=row["attempt_count"] >= row["max_attempts"]
+        status="FAILED" if terminal else "AUTHORIZED"
+        available=(datetime.now(timezone.utc)+timedelta(seconds=retry_seconds)).isoformat()
+        self.connection.execute(
+            """UPDATE backup_restore_outbox SET status=?, available_at=?,
+               lease_owner=NULL, lease_expires_at=NULL, last_error=?, updated_at=?
+               WHERE restore_plan_sha256=?""",
+            (status, available, error, now(), plan_sha256),
+        )
+        self.connection.commit()
+        self._audit(
+            actor, "FAIL_BACKUP_RESTORE", "FAILED", error, plan_sha256,
+            {"scope":"IAC", "next_status":status, "network_performed":False},
+        )
+        return status
+
+    def complete_claimed_backup_restore(
+        self, actor: Actor, plan_sha256: str, worker_id: str,
+        receipt: dict[str, Any], *, at: str | None = None,
+    ) -> dict[str, Any]:
+        if self.kill_switch_enabled():
+            raise AuthorizationError("Kill switch is ON; backup restore completion denied")
+        stamp=at or now()
+        row=self.connection.execute(
+            """SELECT * FROM backup_restore_outbox
+               WHERE restore_plan_sha256=? AND status='AUTHORIZED' AND lease_owner=?
+               AND lease_expires_at>?""",
+            (plan_sha256, worker_id, stamp),
+        ).fetchone()
+        if row is None:
+            existing=self.connection.execute(
+                "SELECT * FROM backup_restore_outbox WHERE restore_plan_sha256=?",
+                (plan_sha256,),
+            ).fetchone()
+            if existing is not None and existing["status"] == "RESTORED":
+                plan=json.loads(existing["plan_payload"])
+                prior=json.loads(existing["receipt_payload"])
+                if verify_isolated_backup_restore_receipt(receipt, plan) == prior:
+                    return self.get_backup_restore(actor, plan_sha256)
+            raise AuthorizationError("Worker does not hold the active backup restore lease")
+        self._authorize(actor, row["owner_scope"], (), "write")
+        plan=json.loads(row["plan_payload"])
+        verified=verify_isolated_backup_restore_receipt(receipt, plan)
+        payload=json.dumps(verified, sort_keys=True, separators=(",", ":"))
+        cursor=self.connection.execute(
+            """UPDATE backup_restore_outbox SET status='RESTORED', receipt_payload=?,
+               completed_at=?, updated_at=?, lease_owner=NULL, lease_expires_at=NULL,
+               last_error=NULL WHERE restore_plan_sha256=? AND status='AUTHORIZED'
+               AND lease_owner=? AND lease_expires_at>?""",
+            (payload, verified["restored_at"], stamp, plan_sha256, worker_id, stamp),
+        )
+        if cursor.rowcount != 1:
+            self.connection.rollback()
+            raise AuthorizationError("Backup restore lease changed before completion")
+        self.connection.commit()
+        self._audit(
+            actor, "COMPLETE_BACKUP_RESTORE", "ALLOWED",
+            "Authenticated isolated restore and database integrity evidence verified",
+            plan_sha256,
+            {"scope":"IAC", "provider":"BACKBLAZE_B2", "downloaded":True,
+             "decrypted":True, "restored":True, "isolated_restore":True,
+             "overwrite_performed":False},
+        )
+        return self.get_backup_restore(actor, plan_sha256)
+
+    def hold_claimed_backup_restore_for_reconciliation(
+        self, actor: Actor, plan_sha256: str, worker_id: str, error: str,
+    ) -> str:
+        """Hold a locally published restore artifact for explicit inspection."""
+        if not error.strip():
+            raise ValidationError("Backup restore reconciliation requires an error")
+        if secret_findings({"error":error}):
+            raise ValidationError("Secret-like material is prohibited in restore failures")
+        row=self.connection.execute(
+            """SELECT restore_plan_sha256 FROM backup_restore_outbox
+               WHERE restore_plan_sha256=? AND status='AUTHORIZED' AND lease_owner=?""",
+            (plan_sha256, worker_id),
+        ).fetchone()
+        if row is None:
+            raise AuthorizationError("Worker does not hold the active backup restore lease")
+        self._authorize(actor, "IAC", (), "write")
+        self.connection.execute(
+            """UPDATE backup_restore_outbox SET status='RECONCILIATION_REQUIRED',
+               lease_owner=NULL, lease_expires_at=NULL, last_error=?, updated_at=?
+               WHERE restore_plan_sha256=? AND status='AUTHORIZED' AND lease_owner=?""",
+            (error, now(), plan_sha256, worker_id),
+        )
+        self.connection.commit()
+        self._audit(
+            actor, "HOLD_BACKUP_RESTORE_FOR_RECONCILIATION", "FAILED", error,
+            plan_sha256,
+            {"scope":"IAC", "next_status":"RECONCILIATION_REQUIRED",
+             "automatic_retry_permitted":False},
+        )
+        return "RECONCILIATION_REQUIRED"
+
     def stage_alert_delivery(self, actor: Actor, plan_id: str) -> dict[str, Any]:
         observation=self.get_alert_observation(actor, plan_id)
         plan=observation["plan_payload"]
@@ -1523,6 +2007,10 @@ class SeanOSStore:
             """SELECT status, COUNT(*) AS count FROM backup_transfer_outbox
                GROUP BY status"""
         )} if scope in {None, "IAC"} else {}
+        restore_counts={r["status"]:r["count"] for r in self.connection.execute(
+            """SELECT status, COUNT(*) AS count FROM backup_restore_outbox
+               GROUP BY status"""
+        )} if scope in {None, "IAC"} else {}
         budget_scopes=(scope,) if scope is not None else tuple(sorted(self.allowed_scopes))
         budgets=[self.budget_status(item_scope) for item_scope in budget_scopes]
         integrity=self.integrity_check()
@@ -1534,6 +2022,8 @@ class SeanOSStore:
                  and delivery_counts.get("FAILED", 0) == 0
                  and backup_counts.get("FAILED", 0) == 0
                  and backup_counts.get("RECONCILIATION_REQUIRED", 0) == 0
+                 and restore_counts.get("FAILED", 0) == 0
+                 and restore_counts.get("RECONCILIATION_REQUIRED", 0) == 0
                  and (not require_active_worker or bool(active_workers)))
         needs_attention=sum(
             counts.get(status, 0)
@@ -1542,10 +2032,13 @@ class SeanOSStore:
         needs_attention += delivery_counts.get("FAILED", 0)
         needs_attention += backup_counts.get("FAILED", 0)
         needs_attention += backup_counts.get("RECONCILIATION_REQUIRED", 0)
+        needs_attention += restore_counts.get("FAILED", 0)
+        needs_attention += restore_counts.get("RECONCILIATION_REQUIRED", 0)
         return {"healthy": healthy, "kill_switch": self.kill_switch_enabled(),
                 "integrity": integrity, "queue": counts, "workers": workers,
                 "delivery_outbox":delivery_counts,
                 "backup_transfer_outbox":backup_counts,
+                "backup_restore_outbox":restore_counts,
                 "budgets": [b for b in budgets if b is not None],
                 "needs_attention": needs_attention,
                 "active_worker_count": len(active_workers)}

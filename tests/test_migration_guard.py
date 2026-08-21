@@ -19,7 +19,7 @@ from sean_os.migrations import _upgrade_backup_transfer_outbox
 from sean_os.store import Actor, SeanOSStore
 
 
-V8_TO_V17_TABLES = (
+V8_TO_V18_TABLES = (
     "coding_delivery_requests",
     "coding_deliveries",
     "alert_delivery_outbox",
@@ -27,6 +27,7 @@ V8_TO_V17_TABLES = (
     "alert_observations",
     "backup_activation_evidence",
     "backup_transfer_outbox",
+    "backup_restore_outbox",
 )
 
 
@@ -47,7 +48,7 @@ class MigrationGuardTests(unittest.TestCase):
         with sqlite3.connect(self.database) as connection:
             connection.execute("PRAGMA foreign_keys=OFF")
             connection.execute("DELETE FROM schema_migrations WHERE version >= 8")
-            for table in V8_TO_V17_TABLES:
+            for table in V8_TO_V18_TABLES:
                 connection.execute(f"DROP TABLE {table}")
             connection.commit()
         return record_id
@@ -119,7 +120,7 @@ class MigrationGuardTests(unittest.TestCase):
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         self.assertTrue(evidence["migration_required"])
         self.assertEqual(evidence["source_schema_version"], 7)
-        self.assertEqual(evidence["schema_version"], 17)
+        self.assertEqual(evidence["schema_version"], 18)
         self.assertEqual(manifest["storage_scope"], "SAME_RAILWAY_VOLUME")
         self.assertEqual(manifest["schema_version"], 7)
         self.assertEqual(stat.S_IMODE(backup.stat().st_mode), 0o600)
@@ -139,7 +140,7 @@ class MigrationGuardTests(unittest.TestCase):
         finally:
             migrated.close()
 
-    def test_guard_backs_up_deployed_v16_and_adds_activation_evidence_table(self):
+    def test_guard_backs_up_deployed_v16_and_adds_activation_and_restore_tables(self):
         store=SeanOSStore(self.database, scope_profile="IAC")
         record_id=store.create_record(
             Actor.sean(), "KNOWLEDGE", "IAC", {"name":"v16 migration sentinel"}
@@ -147,13 +148,14 @@ class MigrationGuardTests(unittest.TestCase):
         store.close()
         with sqlite3.connect(self.database) as connection:
             connection.execute("DROP TABLE backup_activation_evidence")
-            connection.execute("DELETE FROM schema_migrations WHERE version=17")
+            connection.execute("DROP TABLE backup_restore_outbox")
+            connection.execute("DELETE FROM schema_migrations WHERE version>=17")
             connection.commit()
 
         evidence=guarded_migrate(self.database, scope_profile="IAC")
 
         self.assertEqual(evidence["source_schema_version"], 16)
-        self.assertEqual(evidence["schema_version"], 17)
+        self.assertEqual(evidence["schema_version"], 18)
         backup, _manifest=backup_paths(self.database, 16)
         with sqlite3.connect(backup) as connection:
             self.assertEqual(
@@ -169,6 +171,47 @@ class MigrationGuardTests(unittest.TestCase):
             table=migrated.connection.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' "
                 "AND name='backup_activation_evidence'"
+            ).fetchone()
+            self.assertIsNotNone(table)
+            restore_table=migrated.connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name='backup_restore_outbox'"
+            ).fetchone()
+            self.assertIsNotNone(restore_table)
+            self.assertTrue(migrated.integrity_check()["ok"])
+        finally:
+            migrated.close()
+
+    def test_guard_backs_up_deployed_v17_and_adds_restore_outbox(self):
+        store=SeanOSStore(self.database, scope_profile="IAC")
+        record_id=store.create_record(
+            Actor.sean(), "KNOWLEDGE", "IAC", {"name":"v17 migration sentinel"}
+        )
+        store.close()
+        with sqlite3.connect(self.database) as connection:
+            connection.execute("DROP TABLE backup_restore_outbox")
+            connection.execute("DELETE FROM schema_migrations WHERE version=18")
+            connection.commit()
+
+        evidence=guarded_migrate(self.database, scope_profile="IAC")
+
+        self.assertEqual(evidence["source_schema_version"], 17)
+        self.assertEqual(evidence["schema_version"], 18)
+        backup, _manifest=backup_paths(self.database, 17)
+        with sqlite3.connect(backup) as connection:
+            self.assertEqual(
+                connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0],
+                17,
+            )
+        migrated=SeanOSStore(self.database, scope_profile="IAC")
+        try:
+            self.assertEqual(
+                migrated.get_record(Actor.sean(), record_id)["payload"]["name"],
+                "v17 migration sentinel",
+            )
+            table=migrated.connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name='backup_restore_outbox'"
             ).fetchone()
             self.assertIsNotNone(table)
             self.assertTrue(migrated.integrity_check()["ok"])
@@ -209,7 +252,7 @@ class MigrationGuardTests(unittest.TestCase):
     def test_explicit_restore_after_success_enters_recovery_state(self):
         self.make_deployed_v7_database()
         guarded_migrate(self.database, scope_profile="IAC")
-        self.assertEqual(self.schema_version(), 17)
+        self.assertEqual(self.schema_version(), 18)
 
         evidence = restore_pre_migration_backup(self.database, 7)
 

@@ -1,0 +1,27 @@
+{
+  "access_owner": "IAC",
+  "account_admin_authorized": false,
+  "approval_required": true,
+  "bucket_ref": "synthetic-ca-east-backup-bucket",
+  "capabilities": [
+    "listAllBucketNames",
+    "listBuckets",
+    "readBucketEncryption",
+    "readBucketRetentions",
+    "readFileRetentions",
+    "readFiles"
+  ],
+  "creation_authorized": false,
+  "credential_destination_ref": "managed-secret-store:synthetic-backup-restore-v1",
+  "data_region": "CA_EAST",
+  "file_name_prefix": "backups/",
+  "format": "sean-os-backblaze-restore-key-proposal/v1",
+  "key_name_ref": "sean-os-backup-restore-pilot-v1",
+  "operator": "sean",
+  "owner_scope": "IAC",
+  "production_data_authorized": false,
+  "provider": "BACKBLAZE_B2",
+  "provider_endpoint": "s3.ca-east-006.backblazeb2.com",
+  "valid_duration_seconds": 14400,
+  "write_authorized": false
+}

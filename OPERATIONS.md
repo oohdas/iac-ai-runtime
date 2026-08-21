@@ -156,6 +156,25 @@ customer action, or paid model service is connected.
     window, matching single-use conditions, and the complete absence of every backup
     execution, worker-path, direct-secret, and managed-secret environment value. It never
     claims work, resolves a secret, constructs a client, encrypts, uploads, or restores.
+63. The restore-key proposal is now a separate non-creating, read-only contract. It is
+    bucket/prefix restricted, Canada-bound, valid for no more than four hours, and distinct
+    from the writer identity. It permits exact file/retention reads but excludes listing,
+    writing, deleting, key/bucket administration, retention/legal-hold mutation, and
+    governance bypass.
+64. Local schema v18 durably stages one upload-evidence-bound isolated restore and its
+    no-action preflight. Only Sean can consume the exact single-use approval. Authorized
+    work uses bounded leases, three attempts, the kill switch, failed-work health, and a
+    terminal non-retrying reconciliation hold whenever a plaintext target may exist.
+65. The injected read port downloads only the approved Backblaze object version into a
+    new private file, rechecks compliance retention, provider AES-256, metadata, size, and
+    hash, and exposes no list/write/delete operation. The execution boundary then requires
+    authenticated client decryption, a new private isolated destination, SQLite integrity,
+    zero foreign-key violations, exact schema, and the permanent IAC profile.
+66. `scripts/restore_operator.py` makes every state mutation hash-bound to the immediately
+    preceding review. It stages/reviews/requests/decides/authorizes without resolving a
+    secret or claiming/downloading/decrypting/restoring. `scripts/restore_worker.py` is a
+    separate default-off one-shot command and is intentionally absent from the container
+    entrypoint and continuous worker. Follow `ISOLATED_RESTORE_RUNBOOK.md`.
 
 ## Local verification
 
@@ -175,6 +194,11 @@ python3 scripts/prepare_backup_transfer.py APPROVAL.json MANIFEST.json \
   --writer-identity-ref iac-vault-writer:backup-only-v1 \
   --client-encryption-key-ref iac-keyring:backup-key-v1
 python3 scripts/backup_operator.py review IAC_DB PLAN_SHA256
+python3 scripts/prepare_backup_restore.py UPLOAD_PLAN.json UPLOAD_RECEIPT.json \
+  backup-restore-key-proposal.example.json \
+  --restore-target-ref isolated-restore:SYNTHETIC-IAC-V1 \
+  --window-start WINDOW_START --window-end WINDOW_END --max-cost-cad 1
+python3 scripts/restore_operator.py review IAC_DB RESTORE_PLAN_SHA256
 ```
 
 The transfer command requires an already verified local IAC backup manifest. It
@@ -229,7 +253,7 @@ Expected evidence:
 - identical alert plans receive deterministic IDs, repeats can be suppressed across
   runs, and acknowledgements produce hashed, timezone-aware local evidence while
   keeping `delivery_authorized=false`.
-- schema v17 durably stores PERSONAL or IAC alert observations, counts identical
+- schema v18 durably stores PERSONAL or IAC alert observations, counts identical
   occurrences, scope-filters reads, and permits one immutable Sean-only local
   acknowledgement; it also maintains resolvable/reopenable incidents without adding
   a delivery capability.
@@ -362,20 +386,22 @@ The container entrypoint performs the production schema guard after dropping to 
 worker uid/gid and before starting the worker. For an older schema it:
 
 1. verifies the source integrity and schema ledger;
-2. creates `/data/iac-ai.db.pre-migration-v7-to-v12.db` plus a mode-0600 manifest;
+2. creates a source-to-v18 same-volume backup plus a mode-0600 manifest;
 3. verifies the backup's integrity, foreign keys, schema, size, and SHA-256;
-4. migrates and verifies schema v12; and
+4. migrates and verifies schema v18; and
 5. starts the worker only after every check passes.
 
-Any migration exception restores v7 from the verified backup, quarantines the failed
-database for later diagnosis, and exits before worker startup. If migration succeeds
+Any migration exception restores the exact source schema from the verified backup,
+quarantines the failed database for later diagnosis, and exits before worker startup.
+If migration succeeds
 but later release verification fails, stop the service and obtain exact approval to
-set `SEAN_OS_RESTORE_SCHEMA_VERSION=7`. The candidate restores v7 and starts only
+set `SEAN_OS_RESTORE_SCHEMA_VERSION` to that exact source version. The candidate restores
+the source schema and starts only
 `MIGRATION_RECOVERY_HOLD`, which does not open the database. Then select Railway's
 known-good baseline deployment so its source and variables return together.
 
-Never start baseline `1aa8762` against schema v12. Never clear the recovery hold by
-starting the candidate worker against restored schema v7. This file-level copy is on
+Never start an older baseline against schema v18. Never clear the recovery hold by
+starting the candidate worker against a restored older schema. This file-level copy is on
 the same Railway volume and protects only migration rollback; it is not the independent
 encrypted backup required before real data or broader production.
 

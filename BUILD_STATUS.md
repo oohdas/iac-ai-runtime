@@ -5,45 +5,48 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 23:59 EDT
-- Last continuous-goal checkpoint completed: 2026-08-21 00:03 EDT
-- Milestone selected: publish and verify the approved schema-v17 backup-approval candidate
-- Run state: Milestone deployed and verified; production remains healthy and inactive
-- Last meaningful milestone: exact commit `c9a400d` is deployed, and Railway completed the
-  guarded schema-v16-to-v17 migration with a pre-migration backup and integrity OK
+- Last continuous-goal checkpoint started: 2026-08-21 00:06 EDT
+- Last continuous-goal checkpoint completed: 2026-08-21 00:26 EDT
+- Milestone selected: close the local isolated-restore control gap with a distinct
+  least-privilege identity and a default-off, non-overwriting restore path
+- Run state: Local isolated-restore milestone complete and verified; production remains
+  healthy and unchanged at schema v17
+- Last meaningful milestone: local schema v18 closes the isolated-restore control gap
+  without creating a key, configuring a secret, using a network, or restoring production
 - Deployed commit: `c9a400d1a97fcf656ae90ec5f3363864f16f3b22`
 - Runtime: Online on deployment `56f211f5-7497-46fd-a1f3-59e3ac8e9ff3`, private,
   one replica, original persistent `/data` volume attached
 - Remote main: `c9a400d`; Railway reports the exact commit as a successful deployment
-- Concrete changes: deployed schema v17 durably binds the full revalidated synthetic
-  activation package to its exact transfer; the operator review remains path-free and
-  rejects absent, changed, or mismatched activation evidence; request, decision, and
-  authorization require the digest of the immediately reviewed state; authorization is
-  Sean-only, exact-condition bound, in-window, and refuses every backup execution,
-  worker-path, direct-secret, or managed-secret environment value; expired pending
-  requests are retired before replacement; the command never claims, resolves secrets,
-  constructs a client, encrypts, uploads, or restores; runbook and deployment evidence
-  now reflect the successful `c9a400d` release and safer gate order
-- Verification: deployment logs show a guarded source-schema-16 backup, successful
-  migration to schema 17, and integrity OK; Railway reports deployment `56f211f5` as
-  `SUCCESS`; canonical local gate passes
-  compilation, 223 tests, bridge, container, v16→v17 migration guard, recovery hold, durable
-  secret/approval/execution contracts, streaming encryption, disconnected provider,
-  managed-value, default-off worker, reconciliation, and non-executing pilot invariants,
-  workflow safety, and manifested schema-v17 restore checks; the Backblaze console reports
-  the selected bucket
-  private, encryption enabled, Object Lock default 30 days, zero files, zero bytes,
-  and exact Canada East endpoint `s3.ca-east-006.backblazeb2.com`
+- Concrete changes: a distinct non-creating read-only restore identity now excludes every
+  write/delete/admin/retention-mutation authority; the exact upload receipt, object version,
+  cipher/plain hashes, retention, isolated target, four-hour window, and CAD ceiling bind a
+  separate restore plan. Schema v18 durably stages no-action preflight, exact single-use
+  Sean authorization, bounded leases/retries, kill-switch guards, failure health, and a
+  terminal reconciliation hold. The exact-version read port writes only a new private file;
+  authenticated decryption must produce a new isolated SQLite database with integrity,
+  foreign keys, schema, and IAC profile verified. A hash-bound state-only operator and
+  separate one-shot worker preserve the approval/key/secret/execution gates; the continuous
+  container entrypoint has no restore path. The restore runbook records abort and evidence
+  rules without authorizing production action.
+- Verification: canonical local release gate passes compilation, 251 automated tests,
+  bridge/container/workflow safety, v17→v18 guarded migration, schema-v18 manifested
+  recovery, least-privilege restore contract, durable exact authorization, kill-switch,
+  bounded retry and health behavior, exact-version provider reads, private authenticated
+  decryption, state-only operator, one-shot worker, and reconciliation invariants. Focused
+  restore/migration/core/monitoring tests also pass. Production deployment evidence remains
+  the previously verified schema-v17 deployment `56f211f5`; no production check was needed.
 - Real data connected: No
 - Live integrations enabled: No
-- Current blocker: no synthetic activation package has been staged on production, no
-  transfer has been authorized, and no application key or managed value exists.
-- Next milestone: run one no-network production staging command using only the isolated
-  synthetic sentinel, then review its durable evidence before any writer-key action.
-- Sean action required: separately approve the no-network synthetic production staging
-  command and its bounded window. Do not create an application key yet. State authorization,
-  key creation, managed values, upload, restore, billing changes, real IAC data, and deletion
-  of the unused US East pilot remain separate approvals.
+- Current blocker: production remains at `c9a400d`/schema v17; the local v18 candidate is
+  not pushed or deployed. No synthetic activation, transfer authorization, application key,
+  managed value, upload, restore staging, restore key, download, or restore exists.
+- Next milestone: preserve the verified candidate as a local commit, then prepare an exact
+  morning push/deployment approval package. Production synthetic staging remains a later,
+  separately approved mutation after the v18 deployment is verified healthy.
+- Sean action required: none during unattended local work. After waking, Sean must approve
+  the exact candidate commit before any push/deployment. Production staging, writer key,
+  upload managed values, upload, restore staging, restore key, restore managed values,
+  authorization, one-shot restore, billing change, real data, and deletion remain separate.
 
 ## Recent verified milestones
 
@@ -180,6 +183,15 @@ Every automation run updates it, even when no notification is sent.
     Its migration guard created the source-schema-16 backup, migrated to schema 17, and
     reported integrity OK. No staging command, key, managed value, upload, restore, or real
     data was introduced.
+45. Local schema v18 now closes the isolated-restore control gap. A distinct read-only
+    identity and exact-version provider port cannot list/write/delete; the durable restore
+    outbox requires evidence-bound no-action preflight, exact single-use Sean approval,
+    bounded leases/retries, kill-switch checks, and terminal reconciliation after possible
+    plaintext publication. Authenticated decryption must publish a new private isolated
+    SQLite file and prove hash/size, integrity, foreign keys, schema, and IAC profile. A
+    hash-bound operator changes state only, and the one-shot worker remains absent from the
+    continuous container path. All 251 tests and the canonical gate pass; production is
+    unchanged and no key, secret, network, download, decryption, or restore occurred.
 
 ## Update contract
 
