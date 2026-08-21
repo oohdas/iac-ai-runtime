@@ -795,6 +795,18 @@ class SeanOSStore:
                ORDER BY record_id""",
             (row["approval_target"],),
         ).fetchall()
+        active=[]
+        for approval in pending:
+            if datetime.fromisoformat(approval["expires_at"]) <= datetime.now(timezone.utc):
+                self.connection.execute(
+                    "UPDATE approvals SET status='EXPIRED' WHERE record_id=?",
+                    (approval["record_id"],),
+                )
+            else:
+                active.append(approval)
+        if len(active) != len(pending):
+            self.connection.commit()
+        pending=active
         exact=[item for item in pending if json.loads(item["conditions"]) == conditions]
         if pending:
             if (len(pending) == 1 and len(exact) == 1 and

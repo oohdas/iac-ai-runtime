@@ -52,6 +52,9 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
   uid/gid 10001 with zero effective capabilities.
 - A delayed status/log recheck showed the same running instance, no restart or
   traceback, one replica, no domain, and the original ready `/data` volume.
+- Sean approved exact commit `f6bb665`; Railway deployment `bb7b47da` succeeded on
+  2026-08-20 after a guarded v15→v16 backup/migration with integrity OK. The service
+  remains private, one replica, and backup execution remains unconfigured and disabled.
 - This same-volume guard protects this release but does not satisfy independent
   disaster recovery.
 

@@ -2,7 +2,7 @@
 
 No deployment is authorized by this document. Every item must have evidence before production is enabled.
 
-The existing isolated pilot is authorized and deployed at exact commit `5eb51c2`.
+The existing isolated pilot is authorized and deployed at exact commit `f6bb665`.
 Unchecked items apply to the next release or broader production activation; a push
 to `main` is a deployment and still requires explicit approval.
 
@@ -61,8 +61,8 @@ Current Railway evidence and unresolved controls are recorded in
   binding while proving credentials, encryption, upload, and network remain disabled.
 - [x] Schema v15 durably stages backup preflight evidence and consumes only a Sean-
   approved, exact-condition, single-use authorization without performing an upload.
-- [x] The local schema-v16 follow-up adds a terminal reconciliation hold for ambiguous
-  provider writes; it is not deployed and cannot retry those transfers automatically.
+- [x] Deployed schema v16 adds a terminal reconciliation hold for ambiguous provider
+  writes and cannot retry those transfers automatically.
 - [x] Authorized backup transfers use crash-safe bounded leases, fail after three
   attempts by default, obey the kill switch, and surface critical local health evidence.
 - [x] Completion requires exact production provider/encryption/lock/retention/upload
@@ -80,8 +80,11 @@ Current Railway evidence and unresolved controls are recorded in
   contract, validates private source/manifest paths before resolving managed values,
   and requires the bucket to match the exact approved destination reference.
 - [x] A local one-shot command creates only an isolated synthetic IAC source, private
-  manifest/activation evidence, and a staged no-network preflight; it grants no approval
-  and exposes no key or managed value.
+  manifest/activation evidence, a durable synthetic attestation, and a staged no-network
+  preflight; it grants no approval and exposes no key or managed value.
+- [x] A local state-only operator sequence rejects stale reviews, missing or changed
+  synthetic attestations, mismatched approvals, out-of-window authorization, and any
+  configured execution/secret environment; it performs no claim, upload, or restore.
 - [x] An exact hash-bound supervised package binds the real Railway and Canada bucket
   identifiers to a synthetic-only pilot while authorizing no key, secret, push, deploy,
   upload, restore, network, or execution action.
@@ -103,7 +106,8 @@ Current Railway evidence and unresolved controls are recorded in
 - [x] Production backup region and empty protected Canada East destination.
 - [x] Least-privilege credential, client-encryption, provider, and managed-value
   boundaries are implemented and verified locally.
-- [ ] Approve the exact candidate push/deploy, writer-key creation and managed-value
-  placement, one synthetic upload, and isolated synthetic restore as separate gates.
+- [x] Approve and verify exact candidate `f6bb665` push/deploy.
+- [ ] Approve production synthetic staging, state authorization, writer-key creation,
+  managed-value placement, one synthetic upload, and isolated restore as separate gates.
 - [ ] Any connection to Claude, email, calendar, ShopVox, QuickBooks Online, QNAP, RBC, or customers.
 - [ ] Any handler capable of sending messages, changing external records, deploying code, or moving money.

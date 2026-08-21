@@ -5,48 +5,47 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 21:58 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 21:59 EDT
-- Milestone selected: publish and verify the approved schema-v16 backup worker and
-  synthetic-only activation tooling without activating any external integration
-- Run state: Approved release deployed successfully; backup execution remains inactive
-- Last meaningful milestone: production now has the fail-closed, reconciliation-safe
-  worker and deterministic synthetic activation tooling while all external gates stay off
+- Last continuous-goal checkpoint started: 2026-08-20 22:00 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 22:13 EDT
+- Milestone selected: build a fail-closed operator path for the exact synthetic backup
+  without credentials, network use, upload, restore, or production mutation
+- Run state: Milestone verified locally; deployed production remains healthy and inactive
+- Last meaningful milestone: every backup approval mutation is now bound to a fresh
+  review of durable synthetic-only activation evidence and cannot activate the worker
 - Deployed commit: `f6bb665672c05ce8940450271c2f961e96c6000d`
 - Runtime: Online on deployment `bb7b47da-795d-4cf0-8519-2e32069e18fb`, private,
   one replica, original persistent `/data` volume attached
 - Remote main: `f6bb665`; Railway reports the exact commit as a successful deployment
-- Concrete changes: added restart-safe schema v16 with terminal
-  `RECONCILIATION_REQUIRED`; excluded that state from claims and automatic retries;
-  made it unhealthy and locally critical; wired encryption, managed-value resolution,
-  and the Backblaze port into the existing worker behind a complete explicit activation
-  contract; confined private source/manifest/output paths to the database volume; bound
-  bucket name to the exact destination; validated lease, window, config, and source before
-  constructing a managed client; made local backup creation private and non-overwriting;
-  treated guard, evidence, or completion failure after a verified upload as reconciliation;
-  added a deterministic synthetic-only activation package/CLI, private non-overwriting
-  source/manifest evidence, bounded console output, and a stepwise supervised runbook
+- Concrete changes: local schema v17 durably binds the full revalidated synthetic
+  activation package to its exact transfer; the operator review remains path-free and
+  rejects absent, changed, or mismatched activation evidence; request, decision, and
+  authorization require the digest of the immediately reviewed state; authorization is
+  Sean-only, exact-condition bound, in-window, and refuses every backup execution,
+  worker-path, direct-secret, or managed-secret environment value; expired pending
+  requests are retired before replacement; the command never claims, resolves secrets,
+  constructs a client, encrypts, uploads, or restores; runbook and deployment evidence
+  now reflect the successful `f6bb665` release and safer gate order
 - Verification: deployment logs show a guarded source-schema-15 backup, successful
   migration to schema 16, and integrity OK; Railway reports deployment `bb7b47da` as
   `SUCCESS`; canonical local gate passes
-  compilation, 213 tests, bridge, container, migration guard, recovery hold, durable
+  compilation, 223 tests, bridge, container, v16→v17 migration guard, recovery hold, durable
   secret/approval/execution contracts, streaming encryption, disconnected provider,
   managed-value, default-off worker, reconciliation, and non-executing pilot invariants,
-  workflow safety, and manifested schema-v16 restore checks; the Backblaze console reports
+  workflow safety, and manifested schema-v17 restore checks; the Backblaze console reports
   the selected bucket
   private, encryption enabled, Object Lock default 30 days, zero files, zero bytes,
   and exact Canada East endpoint `s3.ca-east-006.backblazeb2.com`
 - Real data connected: No
 - Live integrations enabled: No
-- Current blocker: no application key or managed value exists, so the external backup
-  path remains inactive by design. No synthetic activation package has been staged on
-  production and no transfer has been authorized.
-- Next milestone: complete the fail-closed offline operator workflow, then request
-  separate approval to stage the exact synthetic pilot before any writer-key or Railway
-  managed-value action is considered.
-- Sean action required: none for continued local development. Do not create an application
-  key yet. Production staging, key creation, managed values, upload, restore, billing
-  changes, real IAC data, and deletion of the unused US East pilot remain separately gated.
+- Current blocker: the verified schema-v17/operator candidate is local only. No synthetic
+  activation package has been staged on production, no transfer has been authorized, and
+  no application key or managed value exists.
+- Next milestone: publish and verify the local candidate, then request separate approval
+  for one no-network production staging command before any writer-key action is considered.
+- Sean action required: approve the exact local commit before push because `main`
+  auto-deploys Railway and migrates schema v16→v17. Do not create an application key yet.
+  Production staging, state authorization, key creation, managed values, upload, restore,
+  billing changes, real IAC data, and deletion of the unused US East pilot remain separate.
 
 ## Recent verified milestones
 
@@ -173,6 +172,11 @@ Every automation run updates it, even when no notification is sent.
     exact no-network preflight, and prints bounded hashes/status. It cannot approve, create
     a key, place a secret, upload, restore, or use real data. The supervised runbook keeps
     every external step separately gated; all 213 tests and the canonical gate pass.
+43. Local schema v17 now persists and revalidates the exact synthetic activation package.
+    A hash-bound state-only operator workflow rejects stale reviews, missing/tampered
+    evidence, wrong identities or conditions, expired requests, out-of-window use, and any
+    configured backup runtime or secret value. It cannot claim, encrypt, upload, or restore;
+    all 223 tests and the canonical release gate pass.
 
 ## Update contract
 

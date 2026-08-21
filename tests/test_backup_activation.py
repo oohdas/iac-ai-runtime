@@ -11,9 +11,11 @@ from sean_os import (
     Actor,
     BackupActivationError,
     SeanOSStore,
+    get_supervised_synthetic_backup_activation_evidence,
     prepare_supervised_synthetic_backup_activation,
     verify_supervised_synthetic_backup_activation,
 )
+from sean_os.backup_activation import _verify_synthetic_source_database
 
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -82,6 +84,17 @@ class BackupActivationTests(unittest.TestCase):
         self.assertEqual(transfer["status"], "PREFLIGHT_VALIDATED")
         self.assertIsNone(transfer["approval_id"])
         self.assertEqual(transfer["attempt_count"], 0)
+        activation=self.store.connection.execute(
+            "SELECT * FROM backup_activation_evidence WHERE plan_sha256=?",
+            (package["transfer_plan"]["plan_sha256"],),
+        ).fetchone()
+        self.assertEqual(activation["activation_sha256"], package["activation_sha256"])
+        self.assertEqual(activation["data_mode"], "SYNTHETIC_IAC_DATABASE_ONLY")
+        self.assertEqual(activation["real_data_authorized"], 0)
+        self.assertEqual(
+            json.loads(activation["activation_payload"])["activation_sha256"],
+            package["activation_sha256"],
+        )
 
     def test_tampering_remains_invalid_even_if_digest_is_recomputed(self):
         package=self.prepare()
@@ -98,6 +111,25 @@ class BackupActivationTests(unittest.TestCase):
             with self.assertRaises(BackupActivationError):
                 verify_supervised_synthetic_backup_activation(changed)
 
+    def test_durable_activation_payload_is_reverified_before_operator_use(self):
+        package=self.prepare()
+        plan_sha=package["transfer_plan"]["plan_sha256"]
+        row=self.store.connection.execute(
+            "SELECT activation_payload FROM backup_activation_evidence WHERE plan_sha256=?",
+            (plan_sha,),
+        ).fetchone()
+        changed=json.loads(row["activation_payload"])
+        changed["data_mode"]="UNTRUSTED"
+        self.store.connection.execute(
+            "UPDATE backup_activation_evidence SET activation_payload=? WHERE plan_sha256=?",
+            (json.dumps(changed, sort_keys=True), plan_sha),
+        )
+        self.store.connection.commit()
+        with self.assertRaisesRegex(BackupActivationError, "payload is invalid"):
+            get_supervised_synthetic_backup_activation_evidence(
+                self.store, Actor.sean(), plan_sha
+            )
+
     def test_workspace_is_volume_confined_private_and_non_overwriting(self):
         outside=Path(self.temporary.name).parent / "outside-backup-staging"
         with self.assertRaisesRegex(BackupActivationError, "inside the data volume"):
@@ -108,6 +140,29 @@ class BackupActivationTests(unittest.TestCase):
         self.prepare()
         with self.assertRaisesRegex(BackupActivationError, "must not already exist"):
             self.prepare()
+
+    def test_non_sentinel_iac_database_cannot_be_attested_as_synthetic(self):
+        source=self.root / "not-synthetic.db"
+        other=SeanOSStore(source, scope_profile="IAC")
+        try:
+            other.create_record(
+                Actor.sean(), "KNOWLEDGE", "IAC", {"name":"Ordinary IAC record"}
+            )
+        finally:
+            other.close()
+        with self.assertRaisesRegex(BackupActivationError, "sentinel is invalid"):
+            _verify_synthetic_source_database(source)
+
+        second=SeanOSStore(source, scope_profile="IAC")
+        try:
+            second.create_record(
+                Actor.sean(), "KNOWLEDGE", "IAC",
+                {"name":"Synthetic backup drill sentinel", "data_mode":"SYNTHETIC_ONLY"},
+            )
+        finally:
+            second.close()
+        with self.assertRaisesRegex(BackupActivationError, "exactly one"):
+            _verify_synthetic_source_database(source)
 
     def test_cli_outputs_only_bounded_no_network_summary(self):
         self.store.close()

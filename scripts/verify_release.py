@@ -325,11 +325,17 @@ def main() -> int:
         "sean-os-supervised-synthetic-backup-activation/v1",
         '"data_mode":"SYNTHETIC_IAC_DATABASE_ONLY"',
         "Synthetic backup drill sentinel",
+        "Synthetic backup source must contain exactly one sentinel record",
+        "Synthetic backup source contains non-sentinel operational state",
+        "_SYNTHETIC_EMPTY_TABLES",
         "build_supervised_backup_pilot_package",
         "build_backup_transfer_plan",
         "synthetic_backup_adapter_receipt",
         "stage_backup_transfer",
         "record_backup_transfer_preflight",
+        "record_supervised_synthetic_backup_activation",
+        "get_supervised_synthetic_backup_activation_evidence",
+        '"activation_payload":_canonical(verified)',
         "write_private_json",
         "os.O_EXCL",
         "SEAN_OS_BACKUP_MANIFEST_PATH",
@@ -352,6 +358,45 @@ def main() -> int:
     if '"backup_manifest"' in backup_activation_cli or '"non_secret_runtime"' in backup_activation_cli:
         raise SystemExit("backup activation CLI must print only its bounded summary")
     checks.append({"check": "synthetic_backup_activation_staging", "passed": True})
+    backup_operator_source = (ROOT / "sean_os" / "backup_operator.py").read_text(
+        encoding="utf-8"
+    )
+    backup_operator_cli = (ROOT / "scripts" / "backup_operator.py").read_text(
+        encoding="utf-8"
+    )
+    required_backup_operator_invariants = (
+        "sean-os-backup-operator-review/v1",
+        "review_sha256",
+        "Operator review is stale; review the transfer again",
+        "Only a validated synthetic preflight may request approval",
+        "get_supervised_synthetic_backup_activation_evidence",
+        "BACKUP_ACTIVATION_ENV_KEYS",
+        "State authorization requires all backup execution and secret values absent",
+        "State authorization is outside the exact execution window",
+        '"network_performed": False',
+        '"upload_performed": False',
+        '"transfer_claimed": False',
+        "CommandGateway(store, actor).authorize_backup",
+    )
+    required_backup_operator_cli_invariants = (
+        'Actor("iac-backup-interface", frozenset({"IAC"}))',
+        "Actor.sean()",
+        '"backup_operator_request_rejected"',
+        '"--expected-review-sha256"',
+        '"--confirm-plan-sha256"',
+    )
+    if any(
+        item not in backup_operator_source for item in required_backup_operator_invariants
+    ) or any(
+        item not in backup_operator_cli for item in required_backup_operator_cli_invariants
+    ) or any(
+        forbidden in backup_operator_source + backup_operator_cli
+        for forbidden in forbidden_backup_networking
+    ):
+        raise SystemExit(
+            "backup operator must remain hash-bound, state-only, and no-network"
+        )
+    checks.append({"check": "hash_bound_state_only_backup_operator", "passed": True})
     schema_source = (ROOT / "sean_os" / "schema.sql").read_text(encoding="utf-8")
     required_backup_outbox_invariants = (
         "CREATE TABLE IF NOT EXISTS backup_transfer_outbox",
@@ -360,6 +405,10 @@ def main() -> int:
         "idx_backup_transfer_outbox_claim",
         "lease_expires_at TEXT",
         "preflight_receipt_payload TEXT",
+        "CREATE TABLE IF NOT EXISTS backup_activation_evidence",
+        "data_mode TEXT NOT NULL CHECK (data_mode = 'SYNTHETIC_IAC_DATABASE_ONLY')",
+        "real_data_authorized INTEGER NOT NULL CHECK (real_data_authorized = 0)",
+        "activation_payload TEXT NOT NULL",
     )
     required_backup_authorization_invariants = (
         "record_backup_transfer_preflight",

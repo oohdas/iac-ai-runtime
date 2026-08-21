@@ -65,8 +65,17 @@ from .backup_pilot import (
 )
 from .backup_activation import (
     BackupActivationError,
+    get_supervised_synthetic_backup_activation_evidence,
     prepare_supervised_synthetic_backup_activation,
+    record_supervised_synthetic_backup_activation,
     verify_supervised_synthetic_backup_activation,
+)
+from .backup_operator import (
+    BackupOperatorError,
+    authorize_exact_backup_state,
+    decide_exact_backup_approval,
+    request_exact_backup_approval,
+    review_backup_transfer,
 )
 from .monitoring import (
     EscalationRoute, RuntimeMonitor, acknowledge_alert_plan,
@@ -104,8 +113,13 @@ __all__ = [
     "build_backblaze_s3_client",
     "BackupPilotError", "build_supervised_backup_pilot_package",
     "verify_supervised_backup_pilot_package",
-    "BackupActivationError", "prepare_supervised_synthetic_backup_activation",
+    "BackupActivationError", "get_supervised_synthetic_backup_activation_evidence",
+    "prepare_supervised_synthetic_backup_activation",
+    "record_supervised_synthetic_backup_activation",
     "verify_supervised_synthetic_backup_activation",
+    "BackupOperatorError", "authorize_exact_backup_state",
+    "decide_exact_backup_approval", "request_exact_backup_approval",
+    "review_backup_transfer",
     "RuntimeMonitor", "acknowledge_alert_plan", "capture_monitor_snapshot",
     "classify_alerts", "deduplicate_alert_plans",
     "plan_alert_deliveries", "synthetic_delivery_receipt",

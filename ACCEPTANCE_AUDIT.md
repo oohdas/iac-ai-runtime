@@ -15,7 +15,7 @@ Audit date: 2026-08-20. Source: approved Master Specification §14. “Partial�
 | 9 | Immutable material-action trace | Proven locally | Append-only audit, allow/deny/fail, policy result, evidence IDs, tool/model fields, costs, outcomes, rollback status, execution receipts, scoped trace query; durable work/result boundaries reject secret-like content, operational error/audit evidence redacts it, and interface errors/authentication audit cannot reflect secret-bearing input | Production tool/model identifiers require live worker configuration |
 | 10 | Claude/Claude Code repository delivery | Proven locally | IAC-owned private repository; synthetic-only, no-network coding delivery through durable queue; exact project/task links; immutable branch/review/path/test evidence; durable status; activity and budgeted cost trace; duplicate suppression | Live Claude/model and Git-host mutation require separate identity, budget, and approval |
 | 11 | ChatGPT canonical query/commands and model portability | Proven locally | Authenticated scoped CRUD/link/query/audit gateway; active-incident query; separate Sean-operator incident resolution; restart-safe delivery stage/request/decide/authorize flow; backup-transfer review/request plus separate Sean-only decision/authorization over exact conditions; in-memory HTTP contract proof; asynchronous commands; canonical DB independent of model; arbitrary actions blocked | Approved production identity and ChatGPT connection |
-| 12 | Cloud deployment security/recovery/monitoring | Partial | Private IAC Railway pilot at exact commit `5eb51c2`, one replica, persistent volume, no public domain, permanent IAC profile, and guarded production v12→v15 migration; local schema v16 adds a terminal reconciliation hold and one default-off worker path that validates private local evidence before managed values, binds the exact Canada bucket/endpoint, and cannot auto-retry an ambiguous write; the IAC-owned Backblaze destination remains an empty private Canada East bucket with SSE-B2 and 30-day Object Lock | Writer-key creation, three Railway managed values, one approved synthetic upload, isolated synthetic restore, secret review/rotation, and the controlled production drill require Sean approval; real IAC data remains prohibited |
+| 12 | Cloud deployment security/recovery/monitoring | Partial | Private IAC Railway pilot at exact commit `f6bb665`, one replica, persistent volume, no public domain, permanent IAC profile, and guarded production v15→v16 migration; deployed schema v16 has the default-off reconciliation-safe worker; local schema v17 durably binds and revalidates synthetic activation evidence before a hash-bound state-only operator can request, decide, or authorize; the IAC-owned Backblaze destination remains an empty private Canada East bucket with SSE-B2 and 30-day Object Lock | Production synthetic staging, writer-key creation, three Railway managed values, one approved synthetic upload, isolated synthetic restore, secret review/rotation, and the controlled drill require separate Sean approvals; real IAC data remains prohibited |
 | 13 | Scheduled reports with semantic distinctions | Proven locally | Idempotent daily/weekly scheduling; facts/estimates/inferences/recommendations; confidence/currentness; priorities, approvals, exceptions, scope-filtered health and active incidents, spend, lifecycle, portfolio decisions, changes, unavailable-source disclosure | Live deadline/calendar content remains connector-gated |
 | 14 | Full end-to-end scenario | Proven locally | Automated scenario: capture idea → evaluate → create project → import reversible research → request customer-contact approval → Sean denies → report records outcome | Production verification only |
 
@@ -30,12 +30,12 @@ production drill; live integrations remain later, separately approved activation
 ## Canonical reproduction
 
 Run `python3 scripts/verify_release.py`. The 2026-08-20 release candidate passes
-compilation, 213 automated tests, bridge-integrity, durable secret-boundary,
+compilation, 223 automated tests, bridge-integrity, durable secret-boundary,
 independent-backup approval, encryption, managed-value, disconnected provider, and
-non-executing supervised-pilot contracts, plus container/workflow safety checks and a
-manifested schema-v16 backup/restore drill.
+non-executing supervised-pilot/operator contracts, plus container/workflow safety checks
+and a manifested schema-v17 backup/restore drill.
 Direct regression anchors
 include `test_primary_interface_can_create_query_update_and_link_core_records`,
 `test_full_idea_to_approval_decision_to_report_scenario`,
 `test_synthetic_coding_delivery_links_project_task_review_cost_and_activity`, and
-`test_deployed_schema_v7_migrates_to_v16_without_losing_state`.
+`test_deployed_schema_v7_migrates_to_v17_without_losing_state`.

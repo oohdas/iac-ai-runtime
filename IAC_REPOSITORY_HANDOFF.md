@@ -7,15 +7,15 @@
 - Deployment branch: `main`
 - Railway behavior: existing automatic deployment on an approved `main` push
 - Former rollback baseline: `1aa8762`
-- Deployed release: exact commit `5eb51c2e650d8223b4b06ae90f0a5e90f0b72154`
-- Railway deployment: `4eb6af5f-143f-41b0-9be8-e2cea67aaa82`
+- Deployed release: exact commit `f6bb665672c05ce8940450271c2f961e96c6000d`
+- Railway deployment: `bb7b47da-795d-4cf0-8519-2e32069e18fb`
 
 ## Release evidence
 
 - Canonical gate: `python3 scripts/verify_release.py`
-- Runtime tests: 197 passing in the deployed candidate's canonical local release gate
-- Schema: deployed production migrated from v12 to v15 behind the verified guard; the
-  next unpushed local follow-up adds the restart-safe v16 reconciliation state
+- Runtime tests: 213 passing in the deployed candidate's canonical local release gate
+- Schema: deployed production migrated from v15 to v16 behind the verified guard; the
+  next unpushed local follow-up adds restart-safe v17 synthetic activation evidence
 - Migration recovery: verified SHA-256 same-volume backup, automatic restore on
   migration failure, and explicit database-closed recovery hold
 - Recovery and kill-switch drills: included in the canonical gate
@@ -42,6 +42,9 @@
 7. Sean approved exact commit `5eb51c2`; GitHub and Railway both report success,
    Railway migrated v12→v15 behind a new verified same-volume backup, and the service
    remains Online, private, unexposed, and one replica with backup execution disabled.
+8. Sean approved exact commit `f6bb665`; Railway deployment `bb7b47da` succeeded,
+   migrated v15→v16 behind another verified backup, passed integrity checking, and left
+   backup execution, credentials, uploads, and restores disabled.
 
 If recovery is required, follow the exact automatic or approval-gated recovery path
 in `PRODUCTION_DECISION.md`, then use Railway's selected baseline-deployment rollback

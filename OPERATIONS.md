@@ -143,11 +143,19 @@ customer action, or paid model service is connected.
     writes into the terminal reconciliation state. Current Railway variables leave it off.
 61. `scripts/prepare_supervised_backup_activation.py` creates a separate synthetic-only
     IAC sentinel database under the data volume, writes its manifest and activation
-    package once with mode 0600, builds the exact candidate/window/object plan, and stages
-    only a no-network preflight. It prints a bounded summary and leaves push, key creation,
-    managed values, approval, upload, and restore false. Follow
+    package once with mode 0600, builds the exact candidate/window/object plan, durably
+    binds revalidated synthetic-only evidence, and stages only a no-network preflight.
+    It prints a bounded summary and leaves push, key creation, managed values, approval,
+    upload, and restore false. Follow
     `SUPERVISED_BACKUP_ACTIVATION_RUNBOOK.md`; running it against Railway is itself a
     separately approved production mutation.
+62. `scripts/backup_operator.py` provides a state-only review/request/decision/authorize
+    sequence. Every mutation is bound to the exact digest of the immediately reviewed
+    durable state. Only the IAC interface identity may request; only Sean may decide and
+    authorize. Authorization requires a revalidated synthetic activation, an exact active
+    window, matching single-use conditions, and the complete absence of every backup
+    execution, worker-path, direct-secret, and managed-secret environment value. It never
+    claims work, resolves a secret, constructs a client, encrypts, uploads, or restores.
 
 ## Local verification
 
@@ -166,6 +174,7 @@ python3 scripts/prepare_backup_transfer.py APPROVAL.json MANIFEST.json \
   --provider-endpoint s3.ca-east-006.backblazeb2.com \
   --writer-identity-ref iac-vault-writer:backup-only-v1 \
   --client-encryption-key-ref iac-keyring:backup-key-v1
+python3 scripts/backup_operator.py review IAC_DB PLAN_SHA256
 ```
 
 The transfer command requires an already verified local IAC backup manifest. It
@@ -220,7 +229,7 @@ Expected evidence:
 - identical alert plans receive deterministic IDs, repeats can be suppressed across
   runs, and acknowledgements produce hashed, timezone-aware local evidence while
   keeping `delivery_authorized=false`.
-- schema v16 durably stores PERSONAL or IAC alert observations, counts identical
+- schema v17 durably stores PERSONAL or IAC alert observations, counts identical
   occurrences, scope-filters reads, and permits one immutable Sean-only local
   acknowledgement; it also maintains resolvable/reopenable incidents without adding
   a delivery capability.

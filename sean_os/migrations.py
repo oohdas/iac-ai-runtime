@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 
-LATEST_SCHEMA_VERSION = 16
+LATEST_SCHEMA_VERSION = 17
 
 
 def _stamp() -> str:
@@ -251,6 +251,9 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
     if 16 not in versions:
         _upgrade_backup_transfer_outbox(connection)
         _record(connection, 16)
+    if 17 not in versions:
+        # v17 synthetic activation evidence is additive and created by schema.sql.
+        _record(connection, 17)
     version=connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
     if version != LATEST_SCHEMA_VERSION:
         raise sqlite3.DatabaseError(

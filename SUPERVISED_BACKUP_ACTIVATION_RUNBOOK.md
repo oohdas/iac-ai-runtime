@@ -32,35 +32,69 @@ python scripts/prepare_supervised_backup_activation.py \
 ```
 
 The command creates a private synthetic SQLite source, mode-0600 manifest and activation
-package, and a `PREFLIGHT_VALIDATED` transfer row. It prints only bounded hashes/status
-and performs no network request, key creation, secret placement, upload, restore, or
-approval. Existing files are never overwritten.
+package, a durable synthetic-only activation attestation, and a `PREFLIGHT_VALIDATED`
+transfer row. It prints only bounded hashes/status and performs no network request, key
+creation, secret placement, upload, restore, or approval. Existing files are never
+overwritten.
 
 Stop if the command reports any other data mode, transfer status, or external action.
 
+## Review and authorize durable state — separate approval required
+
+Keep every backup execution, worker-path, direct-secret, and managed-secret environment
+value absent. During the exact active window, use the hashes printed by each immediately
+preceding review. Replace only the bracketed values:
+
+```text
+python scripts/backup_operator.py review /data/iac-ai.db <PLAN_SHA256>
+
+python scripts/backup_operator.py request /data/iac-ai.db <PLAN_SHA256> \
+  --expected-review-sha256 <REVIEW_SHA256> \
+  --expires-at <TIMEZONE_AWARE_EXPIRY_WITHIN_WINDOW>
+
+python scripts/backup_operator.py review /data/iac-ai.db <PLAN_SHA256>
+
+python scripts/backup_operator.py decide /data/iac-ai.db <PLAN_SHA256> <APPROVAL_ID> \
+  --expected-review-sha256 <REVIEW_SHA256> \
+  --approve --reason "Exact synthetic transfer reviewed"
+
+python scripts/backup_operator.py review /data/iac-ai.db <PLAN_SHA256>
+
+python scripts/backup_operator.py authorize /data/iac-ai.db <PLAN_SHA256> <APPROVAL_ID> \
+  --expected-review-sha256 <REVIEW_SHA256> \
+  --confirm-plan-sha256 <PLAN_SHA256>
+```
+
+The review revalidates the private source, manifest, activation package, synthetic data
+attestation, transfer plan, preflight, approval conditions, window, retention, endpoint,
+identity references, byte count, and cost ceiling. Every mutation rejects a stale review.
+The final command only consumes durable approval state; it refuses to run outside the
+window or while any backup execution or secret value is present, and it neither claims
+the transfer nor encrypts or uploads anything. Run `review` again after every mutation.
+
 ## Remaining distinct gates
 
-1. Review the activation hash, exact plan hash, object key, window, byte ceiling, and
-   CAD 15 ceiling.
-2. Approve and create the exact four-hour Backblaze writer key. Do not expose its value
+1. Verify the state-only authorization reports `AUTHORIZED`, the approval reports
+   `CONSUMED`, and all three operation flags remain false.
+2. Separately approve and create the exact four-hour Backblaze writer key. Do not expose its value
    in chat, files, source control, logs, or receipts.
 3. Approve placing the two writer values and one 32-byte encryption-key value into the
-   three fixed Railway managed-variable names.
-4. Create, decide, and consume the exact single-use transfer approval bound to the staged
-   plan. A conversational approval is not a substitute for the stored approval record.
-5. Approve applying the reviewed non-secret runtime contract for one supervised window.
-   This restarts the service and enables the worker path only for the staged synthetic plan.
-6. Verify the provider receipt, exact Canada endpoint, conditional create, SSE-B2,
+   three fixed Railway managed-variable names while execution remains disabled.
+4. Approve applying the reviewed, complete non-secret runtime contract for one supervised
+   window. This restarts the service and enables the worker path only for the already
+   authorized synthetic plan.
+5. Verify the provider receipt, exact Canada endpoint, conditional create, SSE-B2,
    compliance retention, worker health, and that the bucket contains exactly one object.
-7. Separately approve disabling execution and removing or rotating pilot managed values.
-8. Request a new approval before any isolated restore. Real IAC data remains prohibited.
+6. Separately approve disabling execution and removing or rotating pilot managed values.
+7. Request a new approval before any isolated restore. Real IAC data remains prohibited.
 
 ## Automatic aborts
 
 - incomplete or mismatched runtime values;
 - path outside `/data`, symlink, non-private source, or changed source hash/size;
 - wrong bucket, endpoint, region, object key, identity reference, window, cost, or lease;
-- kill switch active or approval absent/expired;
+- missing/changed synthetic activation evidence, stale review, configured runtime during
+  state authorization, kill switch active, or approval absent/expired;
 - missing SSE-B2 or exact 30-day compliance retention;
 - existing object or unsupported conditional create;
 - any ambiguous or post-upload failure. Such a transfer becomes

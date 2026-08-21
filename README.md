@@ -58,8 +58,12 @@ both remain default-off and injectable in tests.
   evidence before managed values are resolved, never auto-retries an ambiguous write,
   and stays absent from the worker command when backup execution is disabled
 - A deterministic synthetic activation command that creates only an isolated sentinel
-  database, writes private non-overwriting evidence, stages a no-network preflight, and
-  leaves push, keys, managed values, approval, upload, and restore as distinct gates
+  database, writes private non-overwriting evidence, durably binds its revalidated
+  synthetic-only attestation, stages a no-network preflight, and leaves push, keys,
+  managed values, approval, upload, and restore as distinct gates
+- A hash-bound state-only operator command that rejects stale reviews, absent or changed
+  synthetic evidence, wrong identity/conditions/window, and any preconfigured backup
+  runtime; authorization cannot claim, encrypt, upload, restore, or resolve a secret
 - A deterministic non-creating first-drill key contract restricted to one bucket,
   the `backups/` prefix, six read/verify/upload capabilities, and four hours; it
   explicitly excludes downloads, deletes, key/bucket administration, retention writes,
@@ -127,6 +131,9 @@ python3 scripts/prepare_backup_transfer.py APPROVAL.json MANIFEST.json \
 python3 scripts/prepare_backup_writer_key.py backup-writer-key-proposal.example.json
 python3 scripts/prepare_supervised_backup_pilot.py FULL_CANDIDATE_COMMIT \
   2026-08-21T09:00:00-04:00 --duration-minutes 120
+python3 scripts/prepare_supervised_backup_activation.py IAC_DB DATA_VOLUME_WORKSPACE \
+  FULL_CANDIDATE_COMMIT WINDOW_START --duration-minutes 120
+python3 scripts/backup_operator.py review IAC_DB PLAN_SHA256
 SEAN_OS_INTERFACE_TOKEN='<32+ random characters>' \
 SEAN_OS_OPERATOR_TOKEN='<different 32+ random characters>' python3 scripts/interface.py
 ```
@@ -140,6 +147,8 @@ See [OPERATIONS.md](OPERATIONS.md) for health, shutdown, recovery, and productio
 See [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) for the explicit production gate.
 See [BACKUP_PROVIDER_DECISION.md](BACKUP_PROVIDER_DECISION.md) for the reviewed,
 non-executing independent-backup recommendation and exact approval boundary.
+See [SUPERVISED_BACKUP_ACTIVATION_RUNBOOK.md](SUPERVISED_BACKUP_ACTIVATION_RUNBOOK.md)
+for the separate staging, state-approval, credential, activation, and verification gates.
 See [INTEGRATION_ROADMAP.md](INTEGRATION_ROADMAP.md) for connector ordering and activation boundaries.
 See [INTERFACE_CONTRACT.md](INTERFACE_CONTRACT.md) for the ChatGPT authority boundary.
 

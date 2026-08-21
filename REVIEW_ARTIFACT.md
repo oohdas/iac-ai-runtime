@@ -2,7 +2,7 @@
 
 ## Release scope
 
-The IAC-owned release is deployed at exact commit `5eb51c2e650d8223b4b06ae90f0a5e90f0b72154`
+The IAC-owned release is deployed at exact commit `f6bb665672c05ce8940450271c2f961e96c6000d`
 against former baseline `1aa8762`. It adds only internal, reversible, approval-gated
 runtime capabilities:
 
@@ -14,6 +14,8 @@ runtime capabilities:
   fail-closed same-volume migration backup/restore and recovery hold;
 - default-off independent-backup approval, encryption, provider, and managed-value
   boundaries with no key, managed value, upload, restore, or real data enabled;
+- schema-v16 reconciliation holds, exact private source checks, and deterministic
+  synthetic-only activation staging behind separately approved production gates;
 - direct Railway-style script import bootstrap, an exact regression test, and a
   post-build container runtime smoke check that rejects tracebacks or early exit.
 
@@ -48,4 +50,7 @@ then passed live health, isolation, privilege, and delayed-stability checks. A
 separately approved recovery flag can still restore that backup and enter a
 database-closed hold before Railway rolls source and variables back to baseline
 `1aa8762`. This same-volume guard is not an independent disaster-recovery backup.
+Sean later approved exact commit `f6bb665`; Railway deployment `bb7b47da` created a
+verified v15 backup, migrated to v16, passed integrity checking, and left every backup
+execution and credential value disabled.
 See `PRODUCTION_DECISION.md` and `PRODUCTION_DRILL_PLAN.md` for the exact boundaries.

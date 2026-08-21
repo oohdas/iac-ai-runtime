@@ -356,6 +356,26 @@ CREATE TABLE IF NOT EXISTS backup_transfer_outbox (
 CREATE INDEX IF NOT EXISTS idx_backup_transfer_outbox_claim
 ON backup_transfer_outbox(status, available_at, lease_expires_at, created_at);
 
+CREATE TABLE IF NOT EXISTS backup_activation_evidence (
+    plan_sha256 TEXT PRIMARY KEY REFERENCES backup_transfer_outbox(plan_sha256),
+    activation_sha256 TEXT NOT NULL UNIQUE CHECK (length(activation_sha256) = 64),
+    activation_format TEXT NOT NULL CHECK (
+        activation_format = 'sean-os-supervised-synthetic-backup-activation/v1'
+    ),
+    candidate_commit TEXT NOT NULL CHECK (length(candidate_commit) = 40),
+    data_mode TEXT NOT NULL CHECK (data_mode = 'SYNTHETIC_IAC_DATABASE_ONLY'),
+    backup_sha256 TEXT NOT NULL CHECK (length(backup_sha256) = 64),
+    backup_bytes INTEGER NOT NULL CHECK (backup_bytes > 0),
+    activation_payload TEXT NOT NULL,
+    network_performed INTEGER NOT NULL CHECK (network_performed = 0),
+    key_created INTEGER NOT NULL CHECK (key_created = 0),
+    secret_placed INTEGER NOT NULL CHECK (secret_placed = 0),
+    upload_authorized INTEGER NOT NULL CHECK (upload_authorized = 0),
+    restore_authorized INTEGER NOT NULL CHECK (restore_authorized = 0),
+    real_data_authorized INTEGER NOT NULL CHECK (real_data_authorized = 0),
+    recorded_at TEXT NOT NULL
+);
+
 CREATE TRIGGER IF NOT EXISTS audit_log_no_update
 BEFORE UPDATE ON audit_log
 BEGIN
