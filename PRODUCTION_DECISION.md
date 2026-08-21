@@ -2,12 +2,13 @@
 
 ## Current status
 
-- Sean approved exact candidate `f6bb665` on 2026-08-20. GitHub and Railway report
-  success; deployment `bb7b47da-795d-4cf0-8519-2e32069e18fb` is Active and Online.
-  The guarded startup created a verified v15 backup, migrated production to schema v16,
+- Sean approved exact candidate `c9a400d` on 2026-08-21. GitHub and Railway report
+  success; deployment `56f211f5-7497-46fd-a1f3-59e3ac8e9ff3` is Active and Online.
+  The guarded startup created a verified v16 backup, migrated production to schema v17,
   and retained the private one-replica service and original volume.
 - The deployed release contains the default-off reconciliation-safe worker and
-  synthetic activation command. No production activation command has been run.
+  synthetic activation command plus the hash-bound state-only operator. No production
+  activation command has been run.
 - Backup execution remains disabled: no Backblaze application key, encryption key,
   Railway managed value, upload, or restore has been added.
 - Sean approved the exact guarded retry for hotfix `139daf3` on 2026-08-20.

@@ -2,7 +2,7 @@
 
 ## Release scope
 
-The IAC-owned release is deployed at exact commit `f6bb665672c05ce8940450271c2f961e96c6000d`
+The IAC-owned release is deployed at exact commit `c9a400d1a97fcf656ae90ec5f3363864f16f3b22`
 against former baseline `1aa8762`. It adds only internal, reversible, approval-gated
 runtime capabilities:
 
@@ -16,6 +16,8 @@ runtime capabilities:
   boundaries with no key, managed value, upload, restore, or real data enabled;
 - schema-v16 reconciliation holds, exact private source checks, and deterministic
   synthetic-only activation staging behind separately approved production gates;
+- schema-v17 durable activation evidence and a hash-bound, state-only approval operator
+  that refuses configured execution or secrets and performs no claim, upload, or restore;
 - direct Railway-style script import bootstrap, an exact regression test, and a
   post-build container runtime smoke check that rejects tracebacks or early exit.
 
@@ -53,4 +55,7 @@ database-closed hold before Railway rolls source and variables back to baseline
 Sean later approved exact commit `f6bb665`; Railway deployment `bb7b47da` created a
 verified v15 backup, migrated to v16, passed integrity checking, and left every backup
 execution and credential value disabled.
+Sean then approved exact commit `c9a400d`; Railway deployment `56f211f5` created a
+verified v16 backup, migrated to v17, passed integrity checking, and left production
+staging, execution, credentials, managed values, upload, and restore disabled.
 See `PRODUCTION_DECISION.md` and `PRODUCTION_DRILL_PLAN.md` for the exact boundaries.

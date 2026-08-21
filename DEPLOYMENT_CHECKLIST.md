@@ -2,7 +2,7 @@
 
 No deployment is authorized by this document. Every item must have evidence before production is enabled.
 
-The existing isolated pilot is authorized and deployed at exact commit `f6bb665`.
+The existing isolated pilot is authorized and deployed at exact commit `c9a400d`.
 Unchecked items apply to the next release or broader production activation; a push
 to `main` is a deployment and still requires explicit approval.
 
@@ -61,8 +61,9 @@ Current Railway evidence and unresolved controls are recorded in
   binding while proving credentials, encryption, upload, and network remain disabled.
 - [x] Schema v15 durably stages backup preflight evidence and consumes only a Sean-
   approved, exact-condition, single-use authorization without performing an upload.
-- [x] Deployed schema v16 adds a terminal reconciliation hold for ambiguous provider
-  writes and cannot retry those transfers automatically.
+- [x] Deployed schema v17 adds a terminal reconciliation hold for ambiguous provider
+  writes, cannot retry those transfers automatically, and durably binds every backup
+  approval mutation to freshly reviewed synthetic activation evidence.
 - [x] Authorized backup transfers use crash-safe bounded leases, fail after three
   attempts by default, obey the kill switch, and surface critical local health evidence.
 - [x] Completion requires exact production provider/encryption/lock/retention/upload
@@ -107,6 +108,7 @@ Current Railway evidence and unresolved controls are recorded in
 - [x] Least-privilege credential, client-encryption, provider, and managed-value
   boundaries are implemented and verified locally.
 - [x] Approve and verify exact candidate `f6bb665` push/deploy.
+- [x] Approve and verify exact candidate `c9a400d` push/deploy and guarded v16→v17 migration.
 - [ ] Approve production synthetic staging, state authorization, writer-key creation,
   managed-value placement, one synthetic upload, and isolated restore as separate gates.
 - [ ] Any connection to Claude, email, calendar, ShopVox, QuickBooks Online, QNAP, RBC, or customers.

@@ -55,6 +55,10 @@ Mode: approved isolated pilot; synthetic/empty IAC data only
 - Sean approved exact commit `f6bb665`; Railway deployment `bb7b47da` succeeded on
   2026-08-20 after a guarded v15→v16 backup/migration with integrity OK. The service
   remains private, one replica, and backup execution remains unconfigured and disabled.
+- Sean approved exact commit `c9a400d`; Railway deployment `56f211f5` succeeded on
+  2026-08-21 after a guarded v16→v17 backup/migration with integrity OK. The original
+  volume remains attached, and staging, credentials, managed values, upload, and restore
+  remain unconfigured and disabled.
 - This same-volume guard protects this release but does not satisfy independent
   disaster recovery.
 

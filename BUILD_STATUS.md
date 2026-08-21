@@ -5,18 +5,17 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 22:00 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 22:13 EDT
-- Milestone selected: build a fail-closed operator path for the exact synthetic backup
-  without credentials, network use, upload, restore, or production mutation
-- Run state: Milestone verified locally; deployed production remains healthy and inactive
-- Last meaningful milestone: every backup approval mutation is now bound to a fresh
-  review of durable synthetic-only activation evidence and cannot activate the worker
-- Deployed commit: `f6bb665672c05ce8940450271c2f961e96c6000d`
-- Runtime: Online on deployment `bb7b47da-795d-4cf0-8519-2e32069e18fb`, private,
+- Last continuous-goal checkpoint started: 2026-08-20 23:59 EDT
+- Last continuous-goal checkpoint completed: 2026-08-21 00:03 EDT
+- Milestone selected: publish and verify the approved schema-v17 backup-approval candidate
+- Run state: Milestone deployed and verified; production remains healthy and inactive
+- Last meaningful milestone: exact commit `c9a400d` is deployed, and Railway completed the
+  guarded schema-v16-to-v17 migration with a pre-migration backup and integrity OK
+- Deployed commit: `c9a400d1a97fcf656ae90ec5f3363864f16f3b22`
+- Runtime: Online on deployment `56f211f5-7497-46fd-a1f3-59e3ac8e9ff3`, private,
   one replica, original persistent `/data` volume attached
-- Remote main: `f6bb665`; Railway reports the exact commit as a successful deployment
-- Concrete changes: local schema v17 durably binds the full revalidated synthetic
+- Remote main: `c9a400d`; Railway reports the exact commit as a successful deployment
+- Concrete changes: deployed schema v17 durably binds the full revalidated synthetic
   activation package to its exact transfer; the operator review remains path-free and
   rejects absent, changed, or mismatched activation evidence; request, decision, and
   authorization require the digest of the immediately reviewed state; authorization is
@@ -24,9 +23,9 @@ Every automation run updates it, even when no notification is sent.
   worker-path, direct-secret, or managed-secret environment value; expired pending
   requests are retired before replacement; the command never claims, resolves secrets,
   constructs a client, encrypts, uploads, or restores; runbook and deployment evidence
-  now reflect the successful `f6bb665` release and safer gate order
-- Verification: deployment logs show a guarded source-schema-15 backup, successful
-  migration to schema 16, and integrity OK; Railway reports deployment `bb7b47da` as
+  now reflect the successful `c9a400d` release and safer gate order
+- Verification: deployment logs show a guarded source-schema-16 backup, successful
+  migration to schema 17, and integrity OK; Railway reports deployment `56f211f5` as
   `SUCCESS`; canonical local gate passes
   compilation, 223 tests, bridge, container, v16→v17 migration guard, recovery hold, durable
   secret/approval/execution contracts, streaming encryption, disconnected provider,
@@ -37,15 +36,14 @@ Every automation run updates it, even when no notification is sent.
   and exact Canada East endpoint `s3.ca-east-006.backblazeb2.com`
 - Real data connected: No
 - Live integrations enabled: No
-- Current blocker: the verified schema-v17/operator candidate is local only. No synthetic
-  activation package has been staged on production, no transfer has been authorized, and
-  no application key or managed value exists.
-- Next milestone: publish and verify the local candidate, then request separate approval
-  for one no-network production staging command before any writer-key action is considered.
-- Sean action required: approve the exact local commit before push because `main`
-  auto-deploys Railway and migrates schema v16→v17. Do not create an application key yet.
-  Production staging, state authorization, key creation, managed values, upload, restore,
-  billing changes, real IAC data, and deletion of the unused US East pilot remain separate.
+- Current blocker: no synthetic activation package has been staged on production, no
+  transfer has been authorized, and no application key or managed value exists.
+- Next milestone: run one no-network production staging command using only the isolated
+  synthetic sentinel, then review its durable evidence before any writer-key action.
+- Sean action required: separately approve the no-network synthetic production staging
+  command and its bounded window. Do not create an application key yet. State authorization,
+  key creation, managed values, upload, restore, billing changes, real IAC data, and deletion
+  of the unused US East pilot remain separate approvals.
 
 ## Recent verified milestones
 
@@ -177,6 +175,11 @@ Every automation run updates it, even when no notification is sent.
     evidence, wrong identities or conditions, expired requests, out-of-window use, and any
     configured backup runtime or secret value. It cannot claim, encrypt, upload, or restore;
     all 223 tests and the canonical release gate pass.
+44. Sean approved pushing exact commit `c9a400d`. GitHub `main` now points to that full
+    commit, and Railway deployment `56f211f5-7497-46fd-a1f3-59e3ac8e9ff3` is successful.
+    Its migration guard created the source-schema-16 backup, migrated to schema 17, and
+    reported integrity OK. No staging command, key, managed value, upload, restore, or real
+    data was introduced.
 
 ## Update contract
 

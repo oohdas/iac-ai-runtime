@@ -138,7 +138,7 @@ automatic retry. Provider support for the conditional-create header remains a fi
 compatibility gate; an unsupported response aborts activation.
 
 The SDK is pinned to `boto3==1.43.76` and is deployed in the default-off runtime at
-exact commit `f6bb665`. None of the three managed values exists, so the provider client
+exact commit `c9a400d`. None of the three managed values exists, so the provider client
 cannot be constructed and no upload or restore is enabled.
 
 ## Official evidence reviewed
