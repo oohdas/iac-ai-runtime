@@ -9,6 +9,29 @@ from scripts.container_entrypoint import requested_restore_version, worker_argum
 
 
 class ContainerEntrypointTests(unittest.TestCase):
+    def backup_environment(self):
+        return {
+            "SEAN_OS_DATABASE":"/data/iac-ai.db",
+            "SEAN_OS_BACKUP_EXECUTION":"APPROVED",
+            "SEAN_OS_BACKUP_PROVIDER":"BACKBLAZE_B2",
+            "SEAN_OS_BACKUP_DATA_REGION":"CA_EAST",
+            "SEAN_OS_BACKUP_ENDPOINT":"s3.ca-east-006.backblazeb2.com",
+            "SEAN_OS_BACKUP_DESTINATION_REF":(
+                "backblaze-b2-bucket:iac-sean-os-ca-east-20260820-v01-9k4m"
+            ),
+            "SEAN_OS_BACKUP_WRITER_IDENTITY_REF":(
+                "railway-managed-value:sean-os-b2-writer-v1"
+            ),
+            "SEAN_OS_BACKUP_ENCRYPTION_KEY_REF":(
+                "railway-managed-value:sean-os-aes256-v1"
+            ),
+            "SEAN_OS_BACKUP_MAX_BYTES":"10485760",
+            "SEAN_OS_BACKUP_MAX_COST_CAD":"15",
+            "SEAN_OS_BACKUP_BUCKET":"iac-sean-os-ca-east-20260820-v01-9k4m",
+            "SEAN_OS_BACKUP_MANIFEST_PATH":"/data/backup-staging/approved.manifest.json",
+            "SEAN_OS_BACKUP_OUTPUT_DIRECTORY":"/data/backup-staging/encrypted",
+        }
+
     def test_direct_script_bootstraps_application_import_path(self):
         root=Path(__file__).resolve().parents[1]
         script=root / "scripts" / "container_entrypoint.py"
@@ -57,6 +80,30 @@ class ContainerEntrypointTests(unittest.TestCase):
         self.assertIn("--synthetic-delivery", arguments)
         with self.assertRaisesRegex(ValueError, "SYNTHETIC_ONLY"):
             worker_arguments({"SEAN_OS_ALERT_DELIVERY_MODE":"LIVE"})
+
+    def test_backup_worker_is_default_off_and_requires_complete_exact_contract(self):
+        arguments=worker_arguments(self.backup_environment())
+        self.assertIn("--backup-execution", arguments)
+        self.assertIn("iac-sean-os-ca-east-20260820-v01-9k4m", arguments)
+        self.assertIn("/data/backup-staging/approved.manifest.json", arguments)
+        self.assertIn("/data/backup-staging/encrypted", arguments)
+        partial=self.backup_environment()
+        partial.pop("SEAN_OS_BACKUP_MANIFEST_PATH")
+        with self.assertRaisesRegex(ValueError, "complete worker contract"):
+            worker_arguments(partial)
+        with self.assertRaisesRegex(ValueError, "Disabled backup execution"):
+            worker_arguments({
+                "SEAN_OS_BACKUP_OUTPUT_DIRECTORY":"/data/backup-staging/encrypted"
+            })
+        for key, value in (
+            ("SEAN_OS_BACKUP_MANIFEST_PATH", "/tmp/outside.manifest.json"),
+            ("SEAN_OS_BACKUP_OUTPUT_DIRECTORY", "relative/encrypted"),
+        ):
+            changed=self.backup_environment()
+            changed[key]=value
+            with self.subTest(key=key):
+                with self.assertRaisesRegex(ValueError, "inside the database volume"):
+                    worker_arguments(changed)
 
     def test_partial_environment_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "complete route contract"):

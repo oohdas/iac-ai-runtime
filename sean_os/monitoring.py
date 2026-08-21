@@ -92,6 +92,11 @@ def classify_alerts(
         add("ALERT_DELIVERY_FAILED", "CRITICAL", "Synthetic alert delivery exhausted retries")
     if int(health.get("backup_transfer_outbox", {}).get("FAILED", 0)):
         add("BACKUP_TRANSFER_FAILED", "CRITICAL", "Backup transfer exhausted retries")
+    if int(health.get("backup_transfer_outbox", {}).get("RECONCILIATION_REQUIRED", 0)):
+        add(
+            "BACKUP_TRANSFER_RECONCILIATION_REQUIRED", "CRITICAL",
+            "Backup provider write result requires manual reconciliation",
+        )
     if backup_ok is False:
         add("BACKUP_FAILED", "CRITICAL", "Latest verified backup failed")
 

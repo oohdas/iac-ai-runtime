@@ -40,6 +40,14 @@ _OBJECT_KEY = re.compile(r"backups/[A-Za-z0-9][A-Za-z0-9._/-]{0,191}")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 
 
+def verify_backblaze_bucket_name(value: Any) -> str:
+    if not isinstance(value, str) or not _BUCKET_NAME.fullmatch(value):
+        raise BackupProviderError("Backblaze bucket name is malformed")
+    if ".." in value or ".-" in value or "-." in value:
+        raise BackupProviderError("Backblaze bucket name is unsafe")
+    return value
+
+
 def _safe_reference(name: str, value: Any) -> str:
     if (
         not isinstance(value, str)
@@ -105,13 +113,15 @@ class BackblazeS3UploadPort:
         endpoint: str,
         writer_identity_ref: str,
     ):
-        if not isinstance(bucket_name, str) or not _BUCKET_NAME.fullmatch(bucket_name):
-            raise BackupProviderError("Backblaze bucket name is malformed")
-        if ".." in bucket_name or ".-" in bucket_name or "-." in bucket_name:
-            raise BackupProviderError("Backblaze bucket name is unsafe")
+        bucket_name=verify_backblaze_bucket_name(bucket_name)
+        destination_ref=_safe_reference("destination_ref", destination_ref)
+        if destination_ref != f"backblaze-b2-bucket:{bucket_name}":
+            raise BackupProviderError(
+                "Backblaze bucket does not match the approved destination reference"
+            )
         self.client = client
         self.bucket_name = bucket_name
-        self.destination_ref = _safe_reference("destination_ref", destination_ref)
+        self.destination_ref = destination_ref
         self.endpoint = _safe_reference("endpoint", endpoint)
         self.writer_identity_ref = _safe_reference(
             "writer_identity_ref", writer_identity_ref

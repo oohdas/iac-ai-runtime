@@ -28,10 +28,12 @@ from .backup_adapter import (
 )
 from .backup_execution import (
     BackupExecutionError,
+    BackupExecutionReconciliationRequired,
     BackupRuntimeConfig,
     EncryptedBackupArtifact,
     execute_claimed_backup_transfer,
     load_backup_runtime_config,
+    validate_claimed_backup_transfer,
 )
 from .backup_credentials import (
     BackupCredentialError,
@@ -49,6 +51,7 @@ from .backup_provider import (
     BackblazeS3UploadPort,
     BackupProviderError,
     BackupReconciliationRequired,
+    verify_backblaze_bucket_name,
 )
 from .backup_secrets import (
     BackupSecretError,
@@ -82,13 +85,16 @@ __all__ = [
     "verify_backup_upload_receipt", "verify_backblaze_endpoint",
     "verify_stored_backup_transfer_plan",
     "verify_synthetic_backup_adapter_receipt",
-    "BackupExecutionError", "BackupRuntimeConfig", "EncryptedBackupArtifact",
+    "BackupExecutionError", "BackupExecutionReconciliationRequired",
+    "BackupRuntimeConfig", "EncryptedBackupArtifact",
     "execute_claimed_backup_transfer", "load_backup_runtime_config",
+    "validate_claimed_backup_transfer",
     "BackupCredentialError", "build_backup_writer_key_approval_package",
     "validate_backup_writer_key_proposal", "verify_backup_writer_key_approval_package",
     "AES256GCMFileDecryptor", "AES256GCMFileEncryptor", "BackupEncryptionError",
     "DecryptedBackupArtifact",
     "BackblazeS3UploadPort", "BackupProviderError", "BackupReconciliationRequired",
+    "verify_backblaze_bucket_name",
     "BackupSecretError", "ManagedEnvironmentEncryptionKeyResolver",
     "build_backblaze_s3_client",
     "BackupPilotError", "build_supervised_backup_pilot_package",

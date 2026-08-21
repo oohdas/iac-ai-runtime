@@ -2,6 +2,12 @@
 
 ## Current status
 
+- Sean approved exact independent-backup candidate `5eb51c2` on 2026-08-20.
+  GitHub and Railway report success; deployment `4eb6af5f-143f-41b0-9be8-e2cea67aaa82`
+  is Active and Online. The guarded startup created a verified v12 backup, migrated
+  production to schema v15, and retained the private one-replica service and volume.
+- Backup execution remains disabled: no Backblaze application key, encryption key,
+  Railway managed value, upload, or restore has been added.
 - Sean approved the exact guarded retry for hotfix `139daf3` on 2026-08-20.
 - GitHub verification run #8 passed, including the built-container startup smoke check.
 - Railway deployment `5b6f3a83-404a-45e9-928a-2cf500d330d6` is Online on exact
@@ -56,8 +62,9 @@ Native Railway backups are unavailable on the current Hobby plan.
 The reviewed follow-up recommendation is an IAC-owned Backblaze B2 private bucket
 with 30-day compliance-mode Object Lock, default provider encryption, and IAC-owned
 client-side encryption. `BACKUP_PROVIDER_DECISION.md` records the non-executing
-decision and its approval boundary. No provider account, bucket, credential,
-Railway variable, deployment, upload, or restore has been authorized by that record.
+decision and its approval boundary. The IAC-owned Canada East account and protected
+empty bucket are configured. The deployed adapter code is default-off; no credential,
+Railway managed value, upload, or restore has been authorized by that record.
 
 Railway documents that rollback/redeploy of a selected prior deployment uses that
 deployment's source, image, and variables. The v7 database must never be opened by

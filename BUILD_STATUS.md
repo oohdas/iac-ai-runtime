@@ -5,50 +5,47 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 21:15 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 21:36 EDT
-- Milestone selected: complete the safe local implementation needed for a supervised,
-  synthetic-only Backblaze pilot without creating a key, deploying, or using the network
-- Run state: Milestone verified locally; deployed production remains unchanged and healthy
-- Last meaningful milestone: streaming client encryption, the disconnected provider and
-  managed-value boundaries, and the exact non-executing supervised package are complete
-- Deployed commit: `139daf3`
-- Runtime: Online on deployment `5b6f3a83-404a-45e9-928a-2cf500d330d6`, private,
+- Last continuous-goal checkpoint started: 2026-08-20 21:40 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 21:51 EDT
+- Milestone selected: connect the approved backup components through one default-off,
+  reconciliation-safe worker path without changing Railway or contacting Backblaze
+- Run state: Milestone verified locally; deployed production remains healthy and inactive
+- Last meaningful milestone: ambiguous provider writes can no longer auto-retry, and the
+  worker resolves no managed client until an exact authorized transfer passes validation
+- Deployed commit: `5eb51c2e650d8223b4b06ae90f0a5e90f0b72154`
+- Runtime: Online on deployment `4eb6af5f-143f-41b0-9be8-e2cea67aaa82`, private,
   one replica, original persistent `/data` volume attached
-- Remote main: `139daf3`; GitHub verification run #8 passed in 25 seconds, including
-  the built-container startup smoke check
-- Concrete changes: locked the first-drill Backblaze writer to the exact bucket/prefix,
-  six capabilities, and four-hour maximum; implemented streaming AES-256-GCM with fresh
-  nonces, exact-plan authenticated data, mode-0600 artifacts, no overwrite, key-buffer
-  wiping, quarantine restore, and tamper rejection; implemented an injected Backblaze S3
-  port that rechecks SSE-B2 and compliance retention, conditionally creates one object,
-  verifies its version/retention, and prohibits ambiguous retries; implemented fixed-name
-  Railway managed-value adapters with exact HTTPS endpoint/signing-region binding, signed
-  payloads, and one SDK attempt; pinned reviewed crypto/SDK versions and container install;
-  added a deterministic supervised package binding the actual Railway/Canada resources
-  to synthetic IAC data while authorizing no external action
-- Verification: production guard reported source schema 7, schema 12, integrity OK,
-  backup SHA-256 `6dc6a8acfe2a036b87eab9ca73387cb07ba21116a15dcc2ec87898fe1da9102c`;
-  live health is healthy with one non-stale IAC worker; canonical local gate passes
-  compilation, 197 tests, bridge, container, migration guard, recovery hold, durable
+- Remote main: `5eb51c2`; GitHub's Railway status is `success`, and Railway reports
+  the exact commit message as Active with a successful deployment
+- Concrete changes: added restart-safe schema v16 with terminal
+  `RECONCILIATION_REQUIRED`; excluded that state from claims and automatic retries;
+  made it unhealthy and locally critical; wired encryption, managed-value resolution,
+  and the Backblaze port into the existing worker behind a complete explicit activation
+  contract; confined private source/manifest/output paths to the database volume; bound
+  bucket name to the exact destination; validated lease, window, config, and source before
+  constructing a managed client; made local backup creation private and non-overwriting;
+  treated guard, evidence, or completion failure after a verified upload as reconciliation
+- Verification: deployment logs show a guarded source-schema-12 backup, successful
+  migration to schema 15, and integrity OK; the service is Online and GitHub's Railway
+  status is successful; canonical local gate passes
+  compilation, 209 tests, bridge, container, migration guard, recovery hold, durable
   secret/approval/execution contracts, streaming encryption, disconnected provider,
-  managed-value and non-executing pilot invariants, workflow safety, and manifested
-  restore checks; the Backblaze console reports the selected bucket
+  managed-value, default-off worker, reconciliation, and non-executing pilot invariants,
+  workflow safety, and manifested schema-v16 restore checks; the Backblaze console reports
+  the selected bucket
   private, encryption enabled, Object Lock default 30 days, zero files, zero bytes,
   and exact Canada East endpoint `s3.ca-east-006.backblazeb2.com`
 - Real data connected: No
 - Live integrations enabled: No
-- Current blocker: the verified candidate is local; local Docker is unavailable, so the
-  pinned dependency/container build must be proven by the read-only GitHub verification
-  workflow after a separately approved push. No key or managed value exists, and the
-  deployed service contains none of this candidate code.
-- Next milestone: obtain explicit approval to push the local candidate (which auto-deploys),
-  verify GitHub/container/Railway health, then request the distinct
-  supervised writer-key and managed-value approval for one synthetic-only upload.
-- Sean action required: the next external action is candidate push/deployment approval.
-  Do not create an application key yet. Key creation, Railway managed values, upload,
-  restore, billing changes,
-  real IAC data, and deletion of the unused US East pilot remain separately gated.
+- Current blocker: no application key or managed value exists, so the external backup
+  path remains inactive by design. Production commit `5eb51c2` has no worker activation;
+  the local schema-v16 worker follow-up is not pushed or deployed.
+- Next milestone: prepare the exact private synthetic-source staging command and activation
+  runbook, then assemble the distinct writer-key and Railway managed-value approval for
+  one supervised synthetic upload.
+- Sean action required: None for local work. Do not create an application key yet. Key
+  creation, Railway managed values, upload, restore, billing changes, real IAC data, and
+  deletion of the unused US East pilot remain separately gated.
 
 ## Recent verified milestones
 
@@ -161,6 +158,15 @@ Every automation run updates it, even when no notification is sent.
     named volume, Canada bucket/endpoint, candidate, window, cost, and nested drill/key
     packages to synthetic IAC data only. It authorizes no external action. All 197 tests
     and the canonical release gate pass; production remains unchanged.
+40. Sean approved pushing exact commit `5eb51c2`. GitHub `main` now points to that full
+    commit, GitHub records Railway status `success`, and Railway deployment
+    `4eb6af5f-143f-41b0-9be8-e2cea67aaa82` is Active, successful, Online, private,
+    unexposed, and one replica. No backup key, managed value, upload, or restore was added.
+41. Local schema v16 adds a terminal manual-reconciliation state for ambiguous provider
+    writes. The existing worker now has one complete default-off upload path that confines
+    private source evidence to the data volume, validates before managed values, binds the
+    exact bucket/destination, and performs no action without an authorized lease. All 209
+    tests and the canonical gate pass; this follow-up is local only.
 
 ## Update contract
 

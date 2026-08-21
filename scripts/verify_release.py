@@ -149,6 +149,8 @@ def main() -> int:
         'guard("BEFORE_ENCRYPTION")',
         'guard("BEFORE_UPLOAD")',
         'guard("AFTER_UPLOAD")',
+        "class BackupExecutionReconciliationRequired",
+        "Verified provider write requires manual reconciliation",
         "verify_backblaze_endpoint",
         '"overwrite_performed": False',
         '"credentials_persisted": False',
@@ -240,6 +242,8 @@ def main() -> int:
         '"overwrite_performed": False',
         '"credentials_persisted": False',
         "automatic retry is prohibited",
+        "verify_backblaze_bucket_name",
+        "does not match the approved destination reference",
     )
     forbidden_provider_construction = (
         "import boto", "import requests", "import socket", "import urllib",
@@ -314,7 +318,7 @@ def main() -> int:
     schema_source = (ROOT / "sean_os" / "schema.sql").read_text(encoding="utf-8")
     required_backup_outbox_invariants = (
         "CREATE TABLE IF NOT EXISTS backup_transfer_outbox",
-        "'STAGED','PREFLIGHT_VALIDATED','AUTHORIZED','COMPLETED','FAILED'",
+        "'RECONCILIATION_REQUIRED'",
         "approval_id TEXT REFERENCES approvals(record_id)",
         "idx_backup_transfer_outbox_claim",
         "lease_expires_at TEXT",
@@ -335,6 +339,8 @@ def main() -> int:
         '"provider_endpoint":plan["provider_endpoint"]',
         '"max_cost_cad":plan["max_cost_cad"]',
         "fail_claimed_backup_transfer",
+        "hold_claimed_backup_transfer_for_reconciliation",
+        '"automatic_retry_permitted":False',
         "Backup transfer lease must be between 1 and 900 seconds",
         'backup_counts.get("FAILED", 0) == 0',
         "complete_claimed_backup_transfer",
@@ -346,6 +352,37 @@ def main() -> int:
     ):
         raise SystemExit("backup transfer authorization must remain durable and exact-plan bound")
     checks.append({"check": "durable_backup_transfer_authorization", "passed": True})
+    required_backup_worker_invariants = (
+        "process_backup_transfer_once",
+        "validate_claimed_backup_transfer",
+        "verify_backblaze_bucket_name",
+        "_load_private_backup_manifest",
+        "_private_output_directory",
+        "hold_claimed_backup_transfer_for_reconciliation",
+        '"Provider write result is ambiguous; automatic retry prohibited"',
+        "client_factory(environment, config)",
+    )
+    if any(item not in worker_source for item in required_backup_worker_invariants):
+        raise SystemExit("backup worker must remain exact, default-off, and reconciliation-safe")
+    if worker_source.index("validate_claimed_backup_transfer(") > worker_source.index(
+        "client_factory(environment, config)"
+    ):
+        raise SystemExit("backup worker must validate the exact plan before resolving its client")
+    required_entrypoint_backup_invariants = (
+        "load_backup_runtime_config(environment)",
+        '"SEAN_OS_BACKUP_BUCKET"',
+        '"SEAN_OS_BACKUP_MANIFEST_PATH"',
+        '"SEAN_OS_BACKUP_OUTPUT_DIRECTORY"',
+        "_backup_volume_path",
+        "inside the database volume",
+        '"--backup-execution"',
+        "Disabled backup execution cannot retain worker configuration",
+    )
+    if any(item not in entrypoint for item in required_entrypoint_backup_invariants):
+        raise SystemExit("container backup activation must require one complete default-off contract")
+    if "Backup destination must not already exist" not in store_source or "os.O_EXCL" not in store_source:
+        raise SystemExit("local backup sources must be private and non-overwriting")
+    checks.append({"check": "default_off_reconciliation_safe_backup_worker", "passed": True})
     command_source = (ROOT / "sean_os" / "commands.py").read_text(encoding="utf-8")
     required_backup_interface_invariants = (
         "backup-transfers",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 import sqlite3
 import uuid
 from dataclasses import dataclass
@@ -480,7 +481,10 @@ class SeanOSStore:
         self, actor: Actor, *, status: str | None = None
     ) -> list[dict[str, Any]]:
         self._authorize(actor, "IAC", (), "read")
-        allowed={"STAGED", "PREFLIGHT_VALIDATED", "AUTHORIZED", "COMPLETED", "FAILED"}
+        allowed={
+            "STAGED", "PREFLIGHT_VALIDATED", "AUTHORIZED", "COMPLETED", "FAILED",
+            "RECONCILIATION_REQUIRED",
+        }
         if status is not None and status not in allowed:
             raise ValidationError("Unknown backup transfer status")
         if status is None:
@@ -638,6 +642,37 @@ class SeanOSStore:
             {"scope":"IAC", "next_status":status, "network_performed":False},
         )
         return status
+
+    def hold_claimed_backup_transfer_for_reconciliation(
+        self, actor: Actor, plan_sha256: str, worker_id: str, error: str,
+    ) -> str:
+        """Terminally hold an ambiguous provider write; it must never auto-retry."""
+        if not error.strip():
+            raise ValidationError("Backup reconciliation hold requires an error")
+        if secret_findings({"error":error}):
+            raise ValidationError("Secret-like material is prohibited in backup failures")
+        row=self.connection.execute(
+            """SELECT plan_sha256 FROM backup_transfer_outbox
+               WHERE plan_sha256=? AND status='AUTHORIZED' AND lease_owner=?""",
+            (plan_sha256, worker_id),
+        ).fetchone()
+        if row is None:
+            raise AuthorizationError("Worker does not hold the active backup transfer lease")
+        self._authorize(actor, "IAC", (), "write")
+        self.connection.execute(
+            """UPDATE backup_transfer_outbox SET status='RECONCILIATION_REQUIRED',
+               lease_owner=NULL, lease_expires_at=NULL, last_error=?, updated_at=?
+               WHERE plan_sha256=? AND status='AUTHORIZED' AND lease_owner=?""",
+            (error, now(), plan_sha256, worker_id),
+        )
+        self.connection.commit()
+        self._audit(
+            actor, "HOLD_BACKUP_TRANSFER_FOR_RECONCILIATION", "FAILED", error,
+            plan_sha256,
+            {"scope":"IAC", "next_status":"RECONCILIATION_REQUIRED",
+             "network_result":"AMBIGUOUS", "automatic_retry_permitted":False},
+        )
+        return "RECONCILIATION_REQUIRED"
 
     def assert_backup_transfer_execution_allowed(
         self, actor: Actor, plan_sha256: str, worker_id: str, *, at: str | None = None,
@@ -1291,9 +1326,18 @@ class SeanOSStore:
             self._audit(actor, "BACKUP", "DENIED", "Only Sean may create a full local backup")
             raise AuthorizationError("Only Sean may create a full local backup")
         target = Path(destination)
+        if target.exists() or target.is_symlink():
+            raise ValidationError("Backup destination must not already exist")
         target.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(target) as backup_connection:
-            self.connection.backup(backup_connection)
+        descriptor=os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        os.close(descriptor)
+        try:
+            with sqlite3.connect(target) as backup_connection:
+                self.connection.backup(backup_connection)
+            os.chmod(target, 0o600)
+        except Exception:
+            target.unlink(missing_ok=True)
+            raise
         self._audit(actor, "BACKUP", "ALLOWED", "Verified local SQLite backup created",
                     details={"destination": str(target)})
         return target
@@ -1476,6 +1520,7 @@ class SeanOSStore:
                  and counts.get("POLICY_BLOCKED", 0) == 0
                  and delivery_counts.get("FAILED", 0) == 0
                  and backup_counts.get("FAILED", 0) == 0
+                 and backup_counts.get("RECONCILIATION_REQUIRED", 0) == 0
                  and (not require_active_worker or bool(active_workers)))
         needs_attention=sum(
             counts.get(status, 0)
@@ -1483,6 +1528,7 @@ class SeanOSStore:
         )
         needs_attention += delivery_counts.get("FAILED", 0)
         needs_attention += backup_counts.get("FAILED", 0)
+        needs_attention += backup_counts.get("RECONCILIATION_REQUIRED", 0)
         return {"healthy": healthy, "kill_switch": self.kill_switch_enabled(),
                 "integrity": integrity, "queue": counts, "workers": workers,
                 "delivery_outbox":delivery_counts,

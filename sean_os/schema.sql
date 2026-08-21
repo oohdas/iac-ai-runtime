@@ -337,7 +337,8 @@ CREATE TABLE IF NOT EXISTS backup_transfer_outbox (
     proposal_sha256 TEXT NOT NULL CHECK (length(proposal_sha256) = 64),
     plan_payload TEXT NOT NULL,
     status TEXT NOT NULL CHECK (status IN (
-        'STAGED','PREFLIGHT_VALIDATED','AUTHORIZED','COMPLETED','FAILED'
+        'STAGED','PREFLIGHT_VALIDATED','AUTHORIZED','COMPLETED','FAILED',
+        'RECONCILIATION_REQUIRED'
     )),
     approval_id TEXT REFERENCES approvals(record_id),
     attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),

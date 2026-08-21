@@ -399,6 +399,48 @@ class BackupAdapterTests(unittest.TestCase):
             {alert["code"] for alert in classify_alerts(health)},
         )
 
+    def test_ambiguous_provider_write_enters_terminal_reconciliation_hold(self):
+        plan = build_backup_transfer_plan(
+            self.package, self.manifest, object_ref="backups/reconcile.db.enc"
+        )
+        self.store.stage_backup_transfer(Actor.sean(), plan, self.package)
+        self.store.record_backup_transfer_preflight(
+            Actor.sean(), plan["plan_sha256"],
+            synthetic_backup_adapter_receipt(plan, self.package),
+        )
+        approval_id = self.store.request_backup_transfer_approval(
+            Actor.sean(), plan["plan_sha256"], max_impact="Synthetic",
+            expires_at=(datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        )
+        self.store.decide_approval(
+            Actor.sean(), approval_id, approve=True, reason="Synthetic reconciliation test"
+        )
+        self.store.authorize_backup_transfer(
+            Actor.sean(), plan["plan_sha256"], approval_id=approval_id
+        )
+        worker=Actor("backup-worker", frozenset({"IAC"}))
+        self.store.claim_authorized_backup_transfer(worker, "backup-worker-1")
+
+        status=self.store.hold_claimed_backup_transfer_for_reconciliation(
+            worker, plan["plan_sha256"], "backup-worker-1",
+            "Provider write result is ambiguous; automatic retry prohibited",
+        )
+
+        self.assertEqual(status, "RECONCILIATION_REQUIRED")
+        transfer=self.store.get_backup_transfer(worker, plan["plan_sha256"])
+        self.assertEqual(transfer["status"], "RECONCILIATION_REQUIRED")
+        self.assertIsNone(transfer["lease_owner"])
+        self.assertIsNone(
+            self.store.claim_authorized_backup_transfer(worker, "backup-worker-2")
+        )
+        health=self.store.runtime_health(scope="IAC")
+        self.assertFalse(health["healthy"])
+        self.assertEqual(health["needs_attention"], 1)
+        self.assertIn(
+            "BACKUP_TRANSFER_RECONCILIATION_REQUIRED",
+            {alert["code"] for alert in classify_alerts(health)},
+        )
+
     def test_kill_switch_and_secret_failures_block_backup_transfer_worker(self):
         plan = build_backup_transfer_plan(
             self.package, self.manifest, object_ref="backups/kill-switch.db.enc"

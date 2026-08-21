@@ -96,7 +96,9 @@ customer action, or paid model service is connected.
     integrity, foreign keys, and permanent IAC profile. It drops the source path,
     contains no credentials, is hash-bound to the exact drill proposal, and leaves
     encryption, network, upload, and execution false. Its only adapter is synthetic.
-54. Schema v15 durably stages that plan and its synthetic preflight receipt. The
+54. Schema v15 durably stages that plan and its synthetic preflight receipt. Local
+    schema v16 adds a terminal `RECONCILIATION_REQUIRED` state that is never claimable
+    or automatically retried after an ambiguous provider write. The
     approval request is bound to the plan, proposal, database hash, destination,
     provider endpoint, writer/key references, object reference, retention mode,
     retention period, execution window, and CAD ceiling. Only Sean can atomically
@@ -119,7 +121,7 @@ customer action, or paid model service is connected.
     injected local AES-256-GCM port streams into a new mode-0600 artifact, binds the
     exact plan as authenticated data, wipes mutable key buffers best-effort, and holds
     restore output in quarantine until its tag and plaintext hash verify. No production
-    key resolver exists; all live ports remain separately reviewed and approval-gated.
+    managed key exists; all live ports remain separately reviewed and approval-gated.
 58. The first-drill Backblaze writer-key contract is non-creating, bucket-restricted,
     prefix-restricted to `backups/`, expires within four hours, and permits only bucket
     discovery, encryption/retention reads, upload, and file-retention reads. It excludes
@@ -133,6 +135,12 @@ customer action, or paid model service is connected.
     attempt. It contains no file listing, download, deletion, retention write, or
     automatic network retry. Any uncertain result after the write starts is a manual-
     reconciliation condition. No managed values or live configuration are deployed.
+60. The existing worker now has one complete, default-off backup execution path. The
+    container adds it only when the exact non-secret runtime, bucket, private manifest,
+    and private output-directory contract is complete. The worker confines source and
+    output to the database volume, validates the plan/window/source before resolving
+    managed values, binds bucket name to destination reference, and converts ambiguous
+    writes into the terminal reconciliation state. Current Railway variables leave it off.
 
 ## Local verification
 
@@ -205,7 +213,7 @@ Expected evidence:
 - identical alert plans receive deterministic IDs, repeats can be suppressed across
   runs, and acknowledgements produce hashed, timezone-aware local evidence while
   keeping `delivery_authorized=false`.
-- schema v15 durably stores PERSONAL or IAC alert observations, counts identical
+- schema v16 durably stores PERSONAL or IAC alert observations, counts identical
   occurrences, scope-filters reads, and permits one immutable Sean-only local
   acknowledgement; it also maintains resolvable/reopenable incidents without adding
   a delivery capability.
@@ -220,7 +228,7 @@ Expected evidence:
 - the in-memory HTTP contract test proves the ordinary interface credential receives
   `403` at the operator decision route, while the operator credential can decide and
   separately authorize the exact staged delivery; no socket or external service is used.
-- a schema-v10 fixture migrates through v15 without losing its staged delivery; the new
+- a schema-v10 fixture migrates through v16 without losing its staged delivery; the new
   lease, retry, and availability fields are initialized deterministically.
 - an isolated worker-process test consumes an exactly approved outbox item only when
   `--synthetic-delivery` is explicit and records a receipt proving both

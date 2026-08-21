@@ -252,7 +252,10 @@ class SeanOSCoreTests(unittest.TestCase):
         backup=Path(self.temp.name) / "verified-backup.db"
         manifest=self.store.backup_manifest(self.sean, backup)
         self.assertTrue(manifest["integrity_ok"])
-        self.assertEqual(manifest["schema_version"], 15)
+        self.assertEqual(manifest["schema_version"], 16)
+        self.assertEqual(backup.stat().st_mode & 0o777, 0o600)
+        with self.assertRaisesRegex(ValidationError, "must not already exist"):
+            self.store.backup(self.sean, backup)
         restored_path=Path(self.temp.name) / "restored.db"
         self.store.restore_backup(self.sean, backup, restored_path)
         restored=SeanOSStore(restored_path)
@@ -297,7 +300,7 @@ class SeanOSCoreTests(unittest.TestCase):
         connection.commit(); connection.close()
         migrated=SeanOSStore(legacy_path)
         try:
-            self.assertEqual(migrated.schema_version, 15)
+            self.assertEqual(migrated.schema_version, 16)
             self.assertEqual(
                 migrated.connection.execute("SELECT status FROM work_queue WHERE id=?", (work_id,)).fetchone()[0],
                 "QUEUED",
@@ -324,7 +327,7 @@ class SeanOSCoreTests(unittest.TestCase):
         finally:
             migrated.close()
 
-    def test_deployed_schema_v7_migrates_to_v15_without_losing_state(self):
+    def test_deployed_schema_v7_migrates_to_v16_without_losing_state(self):
         deployed_path=Path(self.temp.name) / "deployed-v7.db"
         deployed=SeanOSStore(deployed_path)
         record_id=deployed.create_record(
@@ -344,7 +347,7 @@ class SeanOSCoreTests(unittest.TestCase):
 
         migrated=SeanOSStore(deployed_path)
         try:
-            self.assertEqual(migrated.schema_version, 15)
+            self.assertEqual(migrated.schema_version, 16)
             self.assertEqual(
                 migrated.get_record(self.sean, record_id)["payload"]["name"],
                 "Deployed migration sentinel",

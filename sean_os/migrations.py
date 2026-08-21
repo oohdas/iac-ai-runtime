@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 
-LATEST_SCHEMA_VERSION = 15
+LATEST_SCHEMA_VERSION = 16
 
 
 def _stamp() -> str:
@@ -81,6 +81,81 @@ def _add_column_if_missing(
     columns={row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
     if column not in columns:
         connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
+def _backup_transfer_supports_reconciliation(connection: sqlite3.Connection) -> bool:
+    row=connection.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='backup_transfer_outbox'"
+    ).fetchone()
+    return bool(row and "RECONCILIATION_REQUIRED" in row[0])
+
+
+def _upgrade_backup_transfer_outbox(connection: sqlite3.Connection) -> None:
+    """Add the manual-reconciliation terminal state without weakening existing rows."""
+    if _backup_transfer_supports_reconciliation(connection):
+        return
+    connection.commit()
+    connection.execute("PRAGMA foreign_keys = OFF")
+    columns=(
+        "plan_sha256", "owner_scope", "approval_target", "proposal_sha256",
+        "plan_payload", "status", "approval_id", "attempt_count", "max_attempts",
+        "available_at", "lease_owner", "lease_expires_at", "last_error",
+        "preflight_receipt_payload", "receipt_payload", "created_at", "updated_at",
+        "completed_at",
+    )
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        connection.execute(
+            """CREATE TABLE backup_transfer_outbox_new (
+                plan_sha256 TEXT PRIMARY KEY CHECK (length(plan_sha256) = 64),
+                owner_scope TEXT NOT NULL CHECK (owner_scope = 'IAC'),
+                approval_target TEXT NOT NULL,
+                proposal_sha256 TEXT NOT NULL CHECK (length(proposal_sha256) = 64),
+                plan_payload TEXT NOT NULL,
+                status TEXT NOT NULL CHECK (status IN (
+                    'STAGED','PREFLIGHT_VALIDATED','AUTHORIZED','COMPLETED','FAILED',
+                    'RECONCILIATION_REQUIRED'
+                )),
+                approval_id TEXT REFERENCES approvals(record_id),
+                attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+                max_attempts INTEGER NOT NULL DEFAULT 3 CHECK (max_attempts BETWEEN 1 AND 10),
+                available_at TEXT NOT NULL,
+                lease_owner TEXT,
+                lease_expires_at TEXT,
+                last_error TEXT,
+                preflight_receipt_payload TEXT,
+                receipt_payload TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                completed_at TEXT
+            )"""
+        )
+        existing={row[1] for row in connection.execute(
+            "PRAGMA table_info(backup_transfer_outbox)"
+        )}
+        if not set(columns).issubset(existing):
+            raise sqlite3.DatabaseError(
+                "Legacy backup_transfer_outbox lacks required migration columns"
+            )
+        names=",".join(columns)
+        connection.execute(
+            f"INSERT INTO backup_transfer_outbox_new ({names}) SELECT {names} "
+            "FROM backup_transfer_outbox"
+        )
+        connection.execute("DROP TABLE backup_transfer_outbox")
+        connection.execute(
+            "ALTER TABLE backup_transfer_outbox_new RENAME TO backup_transfer_outbox"
+        )
+        connection.execute(
+            """CREATE INDEX IF NOT EXISTS idx_backup_transfer_outbox_claim
+               ON backup_transfer_outbox(status, available_at, lease_expires_at, created_at)"""
+        )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.execute("PRAGMA foreign_keys = ON")
 
 
 def apply_migrations(connection: sqlite3.Connection) -> int:
@@ -173,6 +248,9 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
         )
         connection.commit()
         _record(connection, 15)
+    if 16 not in versions:
+        _upgrade_backup_transfer_outbox(connection)
+        _record(connection, 16)
     version=connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
     if version != LATEST_SCHEMA_VERSION:
         raise sqlite3.DatabaseError(

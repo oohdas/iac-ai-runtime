@@ -137,8 +137,9 @@ uncertain result after the write begins requires manual reconciliation and prohi
 automatic retry. Provider support for the conditional-create header remains a first-drill
 compatibility gate; an unsupported response aborts activation.
 
-The SDK is pinned to `boto3==1.43.76`; neither that dependency nor any of the three
-managed values has been deployed to Railway.
+The SDK is pinned to `boto3==1.43.76` and is deployed in the default-off runtime at
+exact commit `5eb51c2`. None of the three managed values exists, so the provider client
+cannot be constructed and no upload or restore is enabled.
 
 ## Official evidence reviewed
 

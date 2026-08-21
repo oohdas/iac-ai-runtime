@@ -33,6 +33,12 @@ class BackupExecutionError(ValueError):
     pass
 
 
+class BackupExecutionReconciliationRequired(BackupExecutionError):
+    """A verified upload may exist, so the transfer must never auto-retry."""
+
+    retry_permitted = False
+
+
 EXECUTION_ENV_KEYS = frozenset({
     "SEAN_OS_BACKUP_EXECUTION",
     "SEAN_OS_BACKUP_PROVIDER",
@@ -318,6 +324,33 @@ def execute_claimed_backup_transfer(
     at: datetime | None = None,
 ) -> dict[str, Any]:
     """Execute only a leased exact approval through separately injected ports."""
+    plan, _verified_source = validate_claimed_backup_transfer(
+        claimed, backup_manifest, worker_id=worker_id, config=config, at=at
+    )
+    source_path = Path(str(backup_manifest["path"]))
+    guard("BEFORE_ENCRYPTION")
+    artifact = encryptor.encrypt(
+        source_path, plan=plan, key_ref=str(config.encryption_key_ref)
+    )
+    encryption_evidence = _verify_encrypted_artifact(
+        artifact, plan, config, source_path
+    )
+    guard("BEFORE_UPLOAD")
+    provider_evidence = uploader.upload_new(artifact, plan=plan, config=config)
+    try:
+        guard("AFTER_UPLOAD")
+        return _build_upload_receipt(provider_evidence, encryption_evidence, plan, config)
+    except Exception as exc:
+        raise BackupExecutionReconciliationRequired(
+            "Verified provider write requires manual reconciliation; automatic retry prohibited"
+        ) from exc
+
+
+def validate_claimed_backup_transfer(
+    claimed: Mapping[str, Any], backup_manifest: Mapping[str, Any], *, worker_id: str,
+    config: BackupRuntimeConfig, at: datetime | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Validate the exact leased transfer before any managed secret is resolved."""
     if not config.enabled:
         raise BackupExecutionError("Backup execution is disabled")
     if (claimed.get("status") != "AUTHORIZED" or not claimed.get("approval_id") or
@@ -352,15 +385,4 @@ def execute_claimed_backup_transfer(
         raise BackupExecutionError("Backup source no longer matches the approved plan")
     if verified_source["backup_bytes"] > int(config.max_bytes or 0):
         raise BackupExecutionError("Backup source exceeds the configured maximum size")
-    source_path = Path(str(backup_manifest["path"]))
-    guard("BEFORE_ENCRYPTION")
-    artifact = encryptor.encrypt(
-        source_path, plan=plan, key_ref=str(config.encryption_key_ref)
-    )
-    encryption_evidence = _verify_encrypted_artifact(
-        artifact, plan, config, source_path
-    )
-    guard("BEFORE_UPLOAD")
-    provider_evidence = uploader.upload_new(artifact, plan=plan, config=config)
-    guard("AFTER_UPLOAD")
-    return _build_upload_receipt(provider_evidence, encryption_evidence, plan, config)
+    return plan, verified_source

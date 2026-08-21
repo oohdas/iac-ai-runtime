@@ -12,6 +12,7 @@ from sean_os import (
     AES256GCMFileEncryptor,
     AuthorizationError,
     BackupExecutionError,
+    BackupExecutionReconciliationRequired,
     EncryptedBackupArtifact,
     SeanOSStore,
     build_backup_transfer_plan,
@@ -363,7 +364,9 @@ class BackupExecutionTests(unittest.TestCase):
         wrong_provider = FakeUploader(
             self.instant, overrides={"provider_region":"US_EAST"}
         )
-        with self.assertRaisesRegex(BackupExecutionError, "Provider upload evidence"):
+        with self.assertRaisesRegex(
+            BackupExecutionReconciliationRequired, "automatic retry prohibited"
+        ):
             execute_claimed_backup_transfer(
                 self.claimed, self.manifest, worker_id=self.worker_id,
                 config=load_backup_runtime_config(self.environment),
@@ -412,6 +415,27 @@ class BackupExecutionTests(unittest.TestCase):
             )["status"],
             "AUTHORIZED",
         )
+
+    def test_post_upload_guard_failure_prohibits_automatic_retry(self):
+        uploader=FakeUploader(self.instant)
+
+        def guard(stage):
+            self.store.assert_backup_transfer_execution_allowed(
+                self.worker, self.plan["plan_sha256"], self.worker_id
+            )
+            if stage == "AFTER_UPLOAD":
+                raise AuthorizationError("Synthetic post-upload guard failure")
+
+        with self.assertRaisesRegex(
+            BackupExecutionReconciliationRequired, "automatic retry prohibited"
+        ):
+            execute_claimed_backup_transfer(
+                self.claimed, self.manifest, worker_id=self.worker_id,
+                config=load_backup_runtime_config(self.environment),
+                encryptor=FakeEncryptor(self.root), uploader=uploader,
+                guard=guard, at=self.instant,
+            )
+        self.assertEqual(uploader.calls, 1)
 
 
 if __name__ == "__main__":

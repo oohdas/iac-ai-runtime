@@ -2,15 +2,18 @@
 
 ## Release scope
 
-The IAC-owned release is deployed at exact commit `139daf3` against former baseline
-`1aa8762`. It adds only internal, reversible, synthetic-safe runtime capabilities:
+The IAC-owned release is deployed at exact commit `5eb51c2e650d8223b4b06ae90f0a5e90f0b72154`
+against former baseline `1aa8762`. It adds only internal, reversible, approval-gated
+runtime capabilities:
 
 - secure incident and alert-delivery operations with distinct operator authority;
 - durable approval-gated outbox, leases, bounded retries, diagnostics, and recovery;
 - synthetic-only Claude Code delivery evidence linked to canonical project/task,
   repository review, changed paths, tests, activity, and budgeted cost;
 - tested deployed-baseline schema v7→v12 migration, updated operational evidence,
-  fail-closed same-volume migration backup/restore, recovery hold, and no live adapter.
+  fail-closed same-volume migration backup/restore and recovery hold;
+- default-off independent-backup approval, encryption, provider, and managed-value
+  boundaries with no key, managed value, upload, restore, or real data enabled;
 - direct Railway-style script import bootstrap, an exact regression test, and a
   post-build container runtime smoke check that rejects tracebacks or early exit.
 

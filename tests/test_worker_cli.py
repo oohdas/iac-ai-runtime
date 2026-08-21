@@ -32,6 +32,17 @@ class WorkerCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("complete route contract", result.stderr)
 
+    def test_partial_backup_worker_contract_fails_startup(self):
+        result = subprocess.run(
+            [
+                sys.executable, "scripts/worker.py", "--once",
+                "--backup-execution", "--backup-bucket", "synthetic-ca-east-backup",
+            ],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("complete explicit worker contract", result.stderr)
+
     def test_complete_monitoring_contract_stays_non_delivering(self):
         with tempfile.TemporaryDirectory() as directory:
             result = subprocess.run(

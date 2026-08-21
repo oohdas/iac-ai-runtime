@@ -103,7 +103,7 @@ class BackupProviderTests(unittest.TestCase):
             },
         )
         self.endpoint = "s3.ca-east-006.backblazeb2.com"
-        self.destination_ref = "backblaze-b2-bucket:synthetic-ca-east"
+        self.destination_ref = "backblaze-b2-bucket:synthetic-ca-east-bucket"
         self.writer_ref = "iac-secret-store:backup-writer-v1"
         self.plan = {
             "provider": "BACKBLAZE_B2",

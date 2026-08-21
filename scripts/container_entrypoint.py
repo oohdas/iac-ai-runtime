@@ -14,6 +14,7 @@ if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
 from sean_os.migration_guard import guarded_migrate, restore_pre_migration_backup
+from sean_os.backup_execution import load_backup_runtime_config
 
 
 WORKER_UID = 10001
@@ -23,6 +24,15 @@ WORKER_GID = 10001
 def _safe_reference(name: str, value: str) -> str:
     if not value or len(value) > 200 or any(ord(character) < 32 for character in value):
         raise ValueError(f"{name} must be a non-empty single-line reference")
+    return value
+
+
+def _backup_volume_path(name: str, value: str, database: str) -> str:
+    value=_safe_reference(name, value)
+    candidate=Path(value)
+    data_root=Path(database).resolve().parent
+    if not candidate.is_absolute() or data_root not in candidate.resolve().parents:
+        raise ValueError(f"{name} must be an absolute path inside the database volume")
     return value
 
 
@@ -59,6 +69,27 @@ def worker_arguments(environment: Mapping[str, str]) -> list[str]:
         if delivery_mode != "SYNTHETIC_ONLY":
             raise ValueError("Alert delivery mode must be SYNTHETIC_ONLY when configured")
         arguments.append("--synthetic-delivery")
+    backup=load_backup_runtime_config(environment)
+    backup_worker_keys=(
+        "SEAN_OS_BACKUP_BUCKET", "SEAN_OS_BACKUP_MANIFEST_PATH",
+        "SEAN_OS_BACKUP_OUTPUT_DIRECTORY",
+    )
+    backup_worker_values=tuple(environment.get(key) for key in backup_worker_keys)
+    if backup.enabled:
+        if not all(backup_worker_values):
+            raise ValueError("Approved backup execution requires the complete worker contract")
+        arguments.extend([
+            "--backup-execution",
+            "--backup-bucket", _safe_reference("backup bucket", backup_worker_values[0]),
+            "--backup-manifest",
+            _backup_volume_path("backup manifest", backup_worker_values[1], database),
+            "--backup-output-directory",
+            _backup_volume_path(
+                "backup output directory", backup_worker_values[2], database
+            ),
+        ])
+    elif any(backup_worker_values):
+        raise ValueError("Disabled backup execution cannot retain worker configuration")
     return arguments
 
 

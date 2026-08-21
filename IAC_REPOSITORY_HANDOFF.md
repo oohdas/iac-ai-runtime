@@ -7,15 +7,15 @@
 - Deployment branch: `main`
 - Railway behavior: existing automatic deployment on an approved `main` push
 - Former rollback baseline: `1aa8762`
-- Deployed release: exact commit `139daf3`
-- Railway deployment: `5b6f3a83-404a-45e9-928a-2cf500d330d6`
+- Deployed release: exact commit `5eb51c2e650d8223b4b06ae90f0a5e90f0b72154`
+- Railway deployment: `4eb6af5f-143f-41b0-9be8-e2cea67aaa82`
 
 ## Release evidence
 
 - Canonical gate: `python3 scripts/verify_release.py`
-- Runtime tests: 159 passing in the canonical post-deployment local release gate
-- Schema: deployed production remains v12; the unpushed local follow-up adds a
-  restart-safe v15 backup-transfer outbox, lease, and receipt migration
+- Runtime tests: 197 passing in the deployed candidate's canonical local release gate
+- Schema: deployed production migrated from v12 to v15 behind the verified guard; the
+  next unpushed local follow-up adds the restart-safe v16 reconciliation state
 - Migration recovery: verified SHA-256 same-volume backup, automatic restore on
   migration failure, and explicit database-closed recovery hold
 - Recovery and kill-switch drills: included in the canonical gate
@@ -39,6 +39,9 @@
 5. Live checks proved healthy IAC scope, integrity, one active worker, uid/gid 10001,
    zero effective capabilities, one replica, no public domain, and the original volume.
 6. Deployment and backup evidence was preserved without record content or secrets.
+7. Sean approved exact commit `5eb51c2`; GitHub and Railway both report success,
+   Railway migrated v12→v15 behind a new verified same-volume backup, and the service
+   remains Online, private, unexposed, and one replica with backup execution disabled.
 
 If recovery is required, follow the exact automatic or approval-gated recovery path
 in `PRODUCTION_DECISION.md`, then use Railway's selected baseline-deployment rollback

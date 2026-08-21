@@ -2,7 +2,7 @@
 
 No deployment is authorized by this document. Every item must have evidence before production is enabled.
 
-The existing isolated pilot is authorized and deployed at exact commit `139daf3`.
+The existing isolated pilot is authorized and deployed at exact commit `5eb51c2`.
 Unchecked items apply to the next release or broader production activation; a push
 to `main` is a deployment and still requires explicit approval.
 
@@ -61,6 +61,8 @@ Current Railway evidence and unresolved controls are recorded in
   binding while proving credentials, encryption, upload, and network remain disabled.
 - [x] Schema v15 durably stages backup preflight evidence and consumes only a Sean-
   approved, exact-condition, single-use authorization without performing an upload.
+- [x] The local schema-v16 follow-up adds a terminal reconciliation hold for ambiguous
+  provider writes; it is not deployed and cannot retry those transfers automatically.
 - [x] Authorized backup transfers use crash-safe bounded leases, fail after three
   attempts by default, obey the kill switch, and surface critical local health evidence.
 - [x] Completion requires exact production provider/encryption/lock/retention/upload
@@ -74,6 +76,9 @@ Current Railway evidence and unresolved controls are recorded in
 - [x] The Backblaze port and Railway managed-value adapters are implemented locally with
   exact endpoint/region binding, signed payloads, conditional create, no SDK retry,
   provider encryption/retention checks, and manual reconciliation after uncertain writes.
+- [x] The local worker follow-up is wired behind a complete default-off activation
+  contract, validates private source/manifest paths before resolving managed values,
+  and requires the bucket to match the exact approved destination reference.
 - [x] An exact hash-bound supervised package binds the real Railway and Canada bucket
   identifiers to a synthetic-only pilot while authorizing no key, secret, push, deploy,
   upload, restore, network, or execution action.

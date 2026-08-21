@@ -42,16 +42,21 @@ both remain default-off and injectable in tests.
   encrypted backup/isolated-restore drill
 - A path-free, provider-neutral backup transfer plan that re-verifies the local IAC
   snapshot and produces only a deterministic no-network synthetic adapter receipt
-- Schema-v15 durable backup-transfer outbox with no-network preflight evidence and
+- Schema-v16 durable backup-transfer outbox with no-network preflight evidence,
+  terminal manual-reconciliation holds for ambiguous writes, and
   atomic, exact-condition, single-use Sean authorization before any future adapter
 - Default-off backup-transfer leases with crash recovery, three-attempt exhaustion,
   kill-switch enforcement, secret-safe failures, and critical health escalation
 - Exact production receipt verification for Backblaze identity, authenticated IAC
   encryption, provider AES-256, compliance retention, timestamps, and no overwrite;
-  no provider client is present or enabled
+  the provider client remains disabled unless the complete explicit worker contract,
+  exact authorization, local source, and managed values are all present
 - A default-off, port-injected backup execution boundary that binds the exact Canada
   endpoint, writer/key references, window, byte and CAD ceilings, active lease, and
   live kill-switch checks before encryption, before upload, and after upload
+- A single existing-worker backup path that validates private same-volume source
+  evidence before managed values are resolved, never auto-retries an ambiguous write,
+  and stays absent from the worker command when backup execution is disabled
 - A deterministic non-creating first-drill key contract restricted to one bucket,
   the `backups/` prefix, six read/verify/upload capabilities, and four hours; it
   explicitly excludes downloads, deletes, key/bucket administration, retention writes,
