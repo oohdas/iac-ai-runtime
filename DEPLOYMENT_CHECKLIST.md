@@ -79,6 +79,9 @@ Current Railway evidence and unresolved controls are recorded in
 - [x] The local worker follow-up is wired behind a complete default-off activation
   contract, validates private source/manifest paths before resolving managed values,
   and requires the bucket to match the exact approved destination reference.
+- [x] A local one-shot command creates only an isolated synthetic IAC source, private
+  manifest/activation evidence, and a staged no-network preflight; it grants no approval
+  and exposes no key or managed value.
 - [x] An exact hash-bound supervised package binds the real Railway and Canada bucket
   identifiers to a synthetic-only pilot while authorizing no key, secret, push, deploy,
   upload, restore, network, or execution action.

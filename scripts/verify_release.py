@@ -315,6 +315,43 @@ def main() -> int:
             "supervised pilot package must bind exact resources and authorize nothing"
         )
     checks.append({"check": "non_executing_supervised_backup_pilot_package", "passed": True})
+    backup_activation_source = (ROOT / "sean_os" / "backup_activation.py").read_text(
+        encoding="utf-8"
+    )
+    backup_activation_cli = (
+        ROOT / "scripts" / "prepare_supervised_backup_activation.py"
+    ).read_text(encoding="utf-8")
+    required_backup_activation_invariants = (
+        "sean-os-supervised-synthetic-backup-activation/v1",
+        '"data_mode":"SYNTHETIC_IAC_DATABASE_ONLY"',
+        "Synthetic backup drill sentinel",
+        "build_supervised_backup_pilot_package",
+        "build_backup_transfer_plan",
+        "synthetic_backup_adapter_receipt",
+        "stage_backup_transfer",
+        "record_backup_transfer_preflight",
+        "write_private_json",
+        "os.O_EXCL",
+        "SEAN_OS_BACKUP_MANIFEST_PATH",
+        "SEAN_OS_BACKUP_OUTPUT_DIRECTORY",
+        '"network_performed":False',
+        '"key_created":False',
+        '"secret_placed":False',
+        '"upload_authorized":False',
+        '"restore_authorized":False',
+        '"real_data_authorized":False',
+    )
+    if any(
+        item not in backup_activation_source for item in required_backup_activation_invariants
+    ) or any(
+        forbidden in backup_activation_source for forbidden in forbidden_backup_networking
+    ):
+        raise SystemExit(
+            "synthetic backup activation must remain private, no-network, and unauthorized"
+        )
+    if '"backup_manifest"' in backup_activation_cli or '"non_secret_runtime"' in backup_activation_cli:
+        raise SystemExit("backup activation CLI must print only its bounded summary")
+    checks.append({"check": "synthetic_backup_activation_staging", "passed": True})
     schema_source = (ROOT / "sean_os" / "schema.sql").read_text(encoding="utf-8")
     required_backup_outbox_invariants = (
         "CREATE TABLE IF NOT EXISTS backup_transfer_outbox",

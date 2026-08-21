@@ -57,6 +57,9 @@ both remain default-off and injectable in tests.
 - A single existing-worker backup path that validates private same-volume source
   evidence before managed values are resolved, never auto-retries an ambiguous write,
   and stays absent from the worker command when backup execution is disabled
+- A deterministic synthetic activation command that creates only an isolated sentinel
+  database, writes private non-overwriting evidence, stages a no-network preflight, and
+  leaves push, keys, managed values, approval, upload, and restore as distinct gates
 - A deterministic non-creating first-drill key contract restricted to one bucket,
   the `backups/` prefix, six read/verify/upload capabilities, and four hours; it
   explicitly excludes downloads, deletes, key/bucket administration, retention writes,

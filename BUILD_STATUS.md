@@ -5,13 +5,13 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 21:40 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 21:51 EDT
-- Milestone selected: connect the approved backup components through one default-off,
-  reconciliation-safe worker path without changing Railway or contacting Backblaze
+- Last continuous-goal checkpoint started: 2026-08-20 21:51 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 21:56 EDT
+- Milestone selected: make the first backup activation deterministic and synthetic-only
+  without changing Railway, Backblaze, credentials, approvals, or real data
 - Run state: Milestone verified locally; deployed production remains healthy and inactive
-- Last meaningful milestone: ambiguous provider writes can no longer auto-retry, and the
-  worker resolves no managed client until an exact authorized transfer passes validation
+- Last meaningful milestone: one command can now create a private isolated synthetic
+  source and stage its exact no-network preflight without authorizing external action
 - Deployed commit: `5eb51c2e650d8223b4b06ae90f0a5e90f0b72154`
 - Runtime: Online on deployment `4eb6af5f-143f-41b0-9be8-e2cea67aaa82`, private,
   one replica, original persistent `/data` volume attached
@@ -24,11 +24,13 @@ Every automation run updates it, even when no notification is sent.
   contract; confined private source/manifest/output paths to the database volume; bound
   bucket name to the exact destination; validated lease, window, config, and source before
   constructing a managed client; made local backup creation private and non-overwriting;
-  treated guard, evidence, or completion failure after a verified upload as reconciliation
+  treated guard, evidence, or completion failure after a verified upload as reconciliation;
+  added a deterministic synthetic-only activation package/CLI, private non-overwriting
+  source/manifest evidence, bounded console output, and a stepwise supervised runbook
 - Verification: deployment logs show a guarded source-schema-12 backup, successful
   migration to schema 15, and integrity OK; the service is Online and GitHub's Railway
   status is successful; canonical local gate passes
-  compilation, 209 tests, bridge, container, migration guard, recovery hold, durable
+  compilation, 213 tests, bridge, container, migration guard, recovery hold, durable
   secret/approval/execution contracts, streaming encryption, disconnected provider,
   managed-value, default-off worker, reconciliation, and non-executing pilot invariants,
   workflow safety, and manifested schema-v16 restore checks; the Backblaze console reports
@@ -40,12 +42,13 @@ Every automation run updates it, even when no notification is sent.
 - Current blocker: no application key or managed value exists, so the external backup
   path remains inactive by design. Production commit `5eb51c2` has no worker activation;
   the local schema-v16 worker follow-up is not pushed or deployed.
-- Next milestone: prepare the exact private synthetic-source staging command and activation
-  runbook, then assemble the distinct writer-key and Railway managed-value approval for
-  one supervised synthetic upload.
-- Sean action required: None for local work. Do not create an application key yet. Key
-  creation, Railway managed values, upload, restore, billing changes, real IAC data, and
-  deletion of the unused US East pilot remain separately gated.
+- Next milestone: publish and verify the two local candidates, then run the separately
+  approved synthetic staging command before requesting writer-key and Railway managed-
+  value approval for one supervised upload.
+- Sean action required: approval is now needed before pushing the local candidates because
+  `main` auto-deploys Railway and migrates schema v15→v16. Do not create an application
+  key yet. Staging, key creation, managed values, upload, restore, billing changes, real
+  IAC data, and deletion of the unused US East pilot remain separately gated.
 
 ## Recent verified milestones
 
@@ -167,6 +170,11 @@ Every automation run updates it, even when no notification is sent.
     private source evidence to the data volume, validates before managed values, binds the
     exact bucket/destination, and performs no action without an authorized lease. All 209
     tests and the canonical gate pass; this follow-up is local only.
+42. A deterministic activation command now creates only a private isolated synthetic IAC
+    sentinel database, writes non-overwriting manifest/activation evidence, stages the
+    exact no-network preflight, and prints bounded hashes/status. It cannot approve, create
+    a key, place a secret, upload, restore, or use real data. The supervised runbook keeps
+    every external step separately gated; all 213 tests and the canonical gate pass.
 
 ## Update contract
 

@@ -55,6 +55,7 @@ class SeanOSStore:
     def __init__(
         self, path: str | Path = ":memory:", *, scope_profile: str = "DEVELOPMENT",
     ) -> None:
+        self.database=str(path)
         self.connection = sqlite3.connect(str(path))
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")

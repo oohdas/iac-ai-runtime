@@ -141,6 +141,13 @@ customer action, or paid model service is connected.
     output to the database volume, validates the plan/window/source before resolving
     managed values, binds bucket name to destination reference, and converts ambiguous
     writes into the terminal reconciliation state. Current Railway variables leave it off.
+61. `scripts/prepare_supervised_backup_activation.py` creates a separate synthetic-only
+    IAC sentinel database under the data volume, writes its manifest and activation
+    package once with mode 0600, builds the exact candidate/window/object plan, and stages
+    only a no-network preflight. It prints a bounded summary and leaves push, key creation,
+    managed values, approval, upload, and restore false. Follow
+    `SUPERVISED_BACKUP_ACTIVATION_RUNBOOK.md`; running it against Railway is itself a
+    separately approved production mutation.
 
 ## Local verification
 

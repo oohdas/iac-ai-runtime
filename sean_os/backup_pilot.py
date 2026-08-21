@@ -120,7 +120,7 @@ def build_supervised_backup_pilot_package(
         "owner_scope": "IAC",
         "data_mode": "SYNTHETIC_IAC_DATABASE_ONLY",
         "candidate_commit": candidate_commit,
-        "deployed_baseline_commit": "139daf35ecf94ddb102fb8b5c376d2b90b056dda",
+        "deployed_baseline_commit": "5eb51c2e650d8223b4b06ae90f0a5e90f0b72154",
         "bucket_name": BACKBLAZE_BUCKET,
         "provider_endpoint": BACKBLAZE_ENDPOINT,
         "object_ref": object_ref,

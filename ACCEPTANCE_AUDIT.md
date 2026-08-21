@@ -30,7 +30,7 @@ production drill; live integrations remain later, separately approved activation
 ## Canonical reproduction
 
 Run `python3 scripts/verify_release.py`. The 2026-08-20 release candidate passes
-compilation, 209 automated tests, bridge-integrity, durable secret-boundary,
+compilation, 213 automated tests, bridge-integrity, durable secret-boundary,
 independent-backup approval, encryption, managed-value, disconnected provider, and
 non-executing supervised-pilot contracts, plus container/workflow safety checks and a
 manifested schema-v16 backup/restore drill.
