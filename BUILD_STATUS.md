@@ -5,18 +5,17 @@ Every automation run updates it, even when no notification is sent.
 
 ## Current snapshot
 
-- Last continuous-goal checkpoint started: 2026-08-20 21:51 EDT
-- Last continuous-goal checkpoint completed: 2026-08-20 21:56 EDT
-- Milestone selected: make the first backup activation deterministic and synthetic-only
-  without changing Railway, Backblaze, credentials, approvals, or real data
-- Run state: Milestone verified locally; deployed production remains healthy and inactive
-- Last meaningful milestone: one command can now create a private isolated synthetic
-  source and stage its exact no-network preflight without authorizing external action
-- Deployed commit: `5eb51c2e650d8223b4b06ae90f0a5e90f0b72154`
-- Runtime: Online on deployment `4eb6af5f-143f-41b0-9be8-e2cea67aaa82`, private,
+- Last continuous-goal checkpoint started: 2026-08-20 21:58 EDT
+- Last continuous-goal checkpoint completed: 2026-08-20 21:59 EDT
+- Milestone selected: publish and verify the approved schema-v16 backup worker and
+  synthetic-only activation tooling without activating any external integration
+- Run state: Approved release deployed successfully; backup execution remains inactive
+- Last meaningful milestone: production now has the fail-closed, reconciliation-safe
+  worker and deterministic synthetic activation tooling while all external gates stay off
+- Deployed commit: `f6bb665672c05ce8940450271c2f961e96c6000d`
+- Runtime: Online on deployment `bb7b47da-795d-4cf0-8519-2e32069e18fb`, private,
   one replica, original persistent `/data` volume attached
-- Remote main: `5eb51c2`; GitHub's Railway status is `success`, and Railway reports
-  the exact commit message as Active with a successful deployment
+- Remote main: `f6bb665`; Railway reports the exact commit as a successful deployment
 - Concrete changes: added restart-safe schema v16 with terminal
   `RECONCILIATION_REQUIRED`; excluded that state from claims and automatic retries;
   made it unhealthy and locally critical; wired encryption, managed-value resolution,
@@ -27,9 +26,9 @@ Every automation run updates it, even when no notification is sent.
   treated guard, evidence, or completion failure after a verified upload as reconciliation;
   added a deterministic synthetic-only activation package/CLI, private non-overwriting
   source/manifest evidence, bounded console output, and a stepwise supervised runbook
-- Verification: deployment logs show a guarded source-schema-12 backup, successful
-  migration to schema 15, and integrity OK; the service is Online and GitHub's Railway
-  status is successful; canonical local gate passes
+- Verification: deployment logs show a guarded source-schema-15 backup, successful
+  migration to schema 16, and integrity OK; Railway reports deployment `bb7b47da` as
+  `SUCCESS`; canonical local gate passes
   compilation, 213 tests, bridge, container, migration guard, recovery hold, durable
   secret/approval/execution contracts, streaming encryption, disconnected provider,
   managed-value, default-off worker, reconciliation, and non-executing pilot invariants,
@@ -40,15 +39,14 @@ Every automation run updates it, even when no notification is sent.
 - Real data connected: No
 - Live integrations enabled: No
 - Current blocker: no application key or managed value exists, so the external backup
-  path remains inactive by design. Production commit `5eb51c2` has no worker activation;
-  the local schema-v16 worker follow-up is not pushed or deployed.
-- Next milestone: publish and verify the two local candidates, then run the separately
-  approved synthetic staging command before requesting writer-key and Railway managed-
-  value approval for one supervised upload.
-- Sean action required: approval is now needed before pushing the local candidates because
-  `main` auto-deploys Railway and migrates schema v15→v16. Do not create an application
-  key yet. Staging, key creation, managed values, upload, restore, billing changes, real
-  IAC data, and deletion of the unused US East pilot remain separately gated.
+  path remains inactive by design. No synthetic activation package has been staged on
+  production and no transfer has been authorized.
+- Next milestone: complete the fail-closed offline operator workflow, then request
+  separate approval to stage the exact synthetic pilot before any writer-key or Railway
+  managed-value action is considered.
+- Sean action required: none for continued local development. Do not create an application
+  key yet. Production staging, key creation, managed values, upload, restore, billing
+  changes, real IAC data, and deletion of the unused US East pilot remain separately gated.
 
 ## Recent verified milestones
 
